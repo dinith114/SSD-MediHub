@@ -1,0 +1,18 @@
+V-10 · Contact form: spoofable sender + no throttling — BEFORE FIX
+Endpoint: POST /api/v1/message/send  (public; from: userEmail, no validation/limit)
+Captured: 2026-09-25 21:37 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+[1] Send a message with a SPOOFED sender address (no login, no validation):
+    email = ceo@some-bank.example  (an address the sender does not own)
+    app replies: Message sent but email failed!
+    -> Accepted and STORED in the DB (create() runs before sendMail()). The
+       'email failed' text only means the test server has no SMTP; the message
+       and the spoofed From were already accepted.
+
+[2] Send 15 messages back-to-back — is any rate-limited?
+    accepted: 15 / 15   rate-limited (429): 0
+
+RESULT: the contact form is public by design, but it accepts a spoofable
+        'From' address with no validation, and applies no rate limiting
+        (15/15 accepted). A spammer can send unlimited mail as any address.
