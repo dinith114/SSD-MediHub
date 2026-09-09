@@ -40,6 +40,10 @@ const { DB_NAME } = await import("../constants.js");
 const { default: app } = await import("../app.js");
 const { seed, TEST_PASSWORD } = await import("./seed.js");
 
+// Mirror the production setting from src/db/dbConnection.js so this test server
+// reflects the real app's V-07 protection (NoSQL operator injection).
+mongoose.set('sanitizeFilter', true);
+
 await mongoose.connect(`${process.env.MONGODB_URI}/${DB_NAME}`);
 const { accounts, ids } = await seed();
 
