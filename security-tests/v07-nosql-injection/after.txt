@@ -1,0 +1,23 @@
+V-07 · NoSQL operator injection — AFTER FIX
+Fix: mongoose.set('sanitizeFilter', true) in src/db/dbConnection.js (the real
+     app's DB config) and mirrored in scripts/dev-server.js for the test server.
+     With it on, an operator object from user input is wrapped in $eq and treated
+     as a literal value to match, so it can no longer act as a query operator.
+     This protects every findOne/find that takes user input (login, register, cart,
+     admin, doctor, etc.) in ONE place, without editing each controller.
+Captured: 2026-09-26 03:41 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+Injection attempts on register email (before, {$gt:""} returned 'already Registered'
+because the operator matched an existing user):
+  email={"$gt":""}       -> Invalid email
+  email={"$ne":null}     -> Invalid email
+  email={"$regex":".*"}  -> Invalid email
+  -> the operators no longer match any user; the object is rejected as a non-email.
+
+Legitimate behaviour unchanged:
+  email="alice@test.local" (existing) -> Patient with this Email already Registered
+  email=<new unique string>           -> User Registrated Successfully!
+
+RESULT: NoSQL operator injection is neutralised globally. Real string emails
+        register and duplicate-detect correctly.
