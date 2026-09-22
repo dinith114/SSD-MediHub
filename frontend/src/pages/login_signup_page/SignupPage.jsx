@@ -5,6 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { Helmet } from "react-helmet";
 import Lottie from "react-lottie";
 import animationData from "../../lottie-animation/loginAnimation.json"; // Replace with your Lottie animation file
+import { base_url } from "../../Api/config";
 
 function SignupPage() {
   const [strength, setStrength] = useState(0);
@@ -41,7 +42,7 @@ function SignupPage() {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/v1/user/patient/register",
+        `${base_url}/user/patient/register`,
         {
           method: "POST",
           headers: {

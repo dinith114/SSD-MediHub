@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 // import { axios } from "../../import-export/ImportExport";
 import { toast } from "react-toastify";
 import axios from "axios";
+import { base_url } from "../../Api/config";
 
 function Testimonials() {
   const [testimonial, setTestimonial] = useState("");
@@ -17,7 +18,7 @@ function Testimonials() {
     const fetchTestimonials = async () => {
       try {
         const response = await axios.get(
-          "http://localhost:8000/api/v1/testimonial/getall"
+          `${base_url}/testimonial/getall`
         );
         setTestimonial(response.data.data);
       } catch (error) {
@@ -45,7 +46,7 @@ function Testimonials() {
     try {
       await axios
         .post(
-          "http://localhost:8000/api/v1/testimonial/add",
+          `${base_url}/testimonial/add`,
           { fullName, email, country, state, review },
           {
             withCredentials: true,
