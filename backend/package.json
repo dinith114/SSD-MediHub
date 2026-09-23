@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev:test": "node scripts/dev-server.js"
   },
   "author": "\"Mohit Kumar\"",
   "license": "ISC",
@@ -26,6 +27,7 @@
     "validator": "^13.12.0"
   },
   "devDependencies": {
+    "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.1.0",
     "prettier": "^3.2.5"
   }
