@@ -1,0 +1,33 @@
+V-05 Logging out does not invalidate the token
+==============================================
+
+state    : BEFORE the fix
+captured : 2026-09-23T07:02:10.461Z
+branch   : test/dinith/v01-v06-before-evidence
+commit   : 13124a4
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  Logout only blanks the cookie in the caller's browser. The token itself stays valid
+  until it expires, so anyone who copied it keeps full access afterwards.
+
+METHOD: black box — use a session, log out, then replay the identical token
+
+  1. GET /api/v1/user/patient/me        with the session cookie
+     HTTP 200  {"statusCode":200,"data":{"address":{"city":"Colombo","country":"Sri Lanka"},"_id":"6ab3796e90165cd2a5b38f7c","firstName
+… [truncated, 380 bytes total]
+
+  2. GET /api/v1/user/patient/logout    same cookie
+     HTTP 200  {"success":true,"message":"User logged out Successfully"}
+
+  3. GET /api/v1/user/patient/me        REPLAYING THE SAME COOKIE
+     HTTP 200  {"statusCode":200,"data":{"address":{"city":"Colombo","country":"Sri Lanka"},"_id":"6ab3796e90165cd2a5b38f7c","firstName":"Alice","lastName":"Adams","email":"alice@test.local","phone":"0770000001","dob":"1995-05-05T00:00:00.000Z","gender":"Female","role":"Patient","createdAt":"2026-09-23T07:02:06.70
+… [truncated, 380 bytes total]
+
+  Step 3 returned 200 with the full profile. The session was never revoked.
+
+WHITE BOX
+  backend/src/controllers/login_logout.controller.js:63-107
+  Each logout handler sets the cookie to "" and returns. There is no server-side
+  record of revoked tokens anywhere in the codebase.

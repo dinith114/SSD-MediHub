@@ -1,0 +1,44 @@
+V-04 Unauthenticated request returns a full stack trace
+=======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-23T07:02:10.461Z
+branch   : test/dinith/v01-v06-before-evidence
+commit   : 13124a4
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  ApiError is declared (statusCode, message) but the login controller calls it
+  backwards. res.status() then receives a sentence, Node refuses it, and Express
+  falls back to its default handler, which returns the stack trace.
+
+METHOD: black box — one request, no login, empty body
+
+$ curl -i -X POST $BASE/api/v1/user/login -H 'Content-Type: application/json' -d '{}'
+  HTTP 500
+  Content-Type: text/html; charset=utf-8
+
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="utf-8">
+  <title>Error</title>
+  </head>
+  <body>
+  <pre>RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: Please Fill Full Form!<br> &nbsp; &nbsp;at ServerResponse.writeHead (node:_http_server:363:11)<br> &nbsp; &nbsp;at ServerResponse._implicitHeader (node:_http_server:349:8)<br> &nbsp; &nbsp;at write_ (node:_http_outgoing:934:9)<br> &nbsp; &nbsp;at ServerResponse.end (node:_http_outgoing:1051:5)<br> &nbsp; &nbsp;at ServerResponse.send (C:\ssd assingment test\medi-hub\backend\node_modules\express\lib\response.js:233:10)<br> &nbsp; &nbsp;at ServerResponse.json (C:\ssd assingment test\medi-hub\backend\node_modules\express\lib\response.js:279:15)<br> &nbsp; &nbsp;at errorHandler (file:///C:/ssd%20assingment%20test/medi-hub/backend/src/utilis/ApiError.js:36:39)<br> &nbsp; &nbsp;at Layer.handle_error (C:\ssd assingment test\medi-h
+  … [truncated, 1209 bytes total]
+
+  SERVER PATHS DISCLOSED (6 found), e.g.:
+    C:\ssd assingment test\medi-hub\backend\node_modules\express\lib\response.js:233:10
+    C:\ssd assingment test\medi-hub\backend\node_modules\express\lib\response.js:279:15
+    file:///C:/ssd%20assingment%20test/medi-hub/backend/src/utilis/ApiError.js:36:39
+
+SAME TEST, WELL-FORMED REQUEST — a second problem in the same route
+
+$ curl -i -X POST $BASE/api/v1/user/login -d '{"email":"alice@test.local", ...}'
+  HTTP 500
+  {"success":false,"message":"axios is not defined"}
+
+  'axios is not defined' — the module is used but never imported, so login has never
+  worked and the reCAPTCHA check in V-01 has never once executed.

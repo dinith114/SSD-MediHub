@@ -1,0 +1,33 @@
+V-03 Session token carries no role, audience or issuer
+======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-23T07:02:10.461Z
+branch   : test/dinith/v01-v06-before-evidence
+commit   : 13124a4
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The token says who you are but not what you may do. Authorisation therefore rests
+  on which cookie NAME the client chose to send, and the client controls that.
+
+METHOD: black box — decode a real session token (no secret needed, it is only base64)
+
+$ node -e "console.log(Buffer.from('<payload>','base64url').toString())"
+  header : {"alg":"HS256","typ":"JWT"}
+  payload: {"id":"6ab3796e90165cd2a5b38f7c","iat":1790146927,"exp":1790233327}
+
+  claims present: id, iat, exp
+  claims missing: role, aud, iss
+  algorithm     : HS256   (jwt.verify() is called without an algorithms allowlist)
+
+WHITE BOX — the same finding in the code
+  backend/src/models/user.model.js:83-84   jwt.sign({ id: this._id }, ...)
+  backend/src/models/doctor.model.js       same payload, same shared secret
+  backend/src/middlewares/auth.middleware.js   role is read from the database, not the token
+
+HONEST LIMIT — state this plainly in the report
+  We tried to escalate by moving one role's token into another role's cookie and it
+  did NOT work: the middleware looks the user up and rejects the mismatch. So this is
+  a missing safety net, not a working break-in. Do not overclaim it.

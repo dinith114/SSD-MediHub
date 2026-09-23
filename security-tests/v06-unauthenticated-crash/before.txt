@@ -1,0 +1,38 @@
+V-06 One unauthenticated request kills the whole backend
+========================================================
+
+state    : BEFORE the fix
+captured : 2026-09-23T07:02:10.461Z
+branch   : test/dinith/v01-v06-before-evidence
+commit   : 13124a4
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  checkout() is the only controller not wrapped in asyncHandler. It references an
+  undefined variable, Express cannot catch the rejected promise, and Node terminates
+  the process. Every user loses the service.
+
+METHOD: black box — health check, one request, health check
+
+  1. GET /api/v1/user/alldoctors   server alive: YES
+
+  2. POST /api/v1/payment/checkout  -d '{"amount":1}'   (no cookie, no login)
+     connection dropped — ECONNRESET
+
+  3. GET /api/v1/user/alldoctors   server alive: NO — the process is gone
+
+  The server was up, one anonymous request was sent, and the server was down.
+  Check the terminal running dev:test — it will show:
+    ReferenceError: instance is not defined
+        at checkout (.../payment.controller.js:10:17)
+
+WHITE BOX
+  backend/src/controllers/payment.controller.js:5-16
+  Line 1 has the Razorpay import commented out, and 'razorpay' is not in package.json,
+  so 'instance' can never be defined. Compare with every other controller, which is
+  wrapped in asyncHandler and would have returned a clean 500 instead.
+
+REMINDER
+  The test server is now dead. Restart it before capturing anything else:
+    cd backend && npm run dev:test
