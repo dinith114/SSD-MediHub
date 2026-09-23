@@ -38,6 +38,7 @@ Every change below was checked against the original code at commit `86b5a18`.
 | 11 | Section 7 | Added blockers: two axios files point at the **original author's live deployment**; a second wrong port in `Testimonials.jsx:48`; `backend/public/temp` missing from the repo |
 | 12 | New Section 8 | "Not fixed, and why" — plan and template, required by the brief |
 | 13 | All findings | **Renumbered and ordered by owner**: Dinith V-01–V-06, Pasan V-07–V-10, then unclaimed V-11–V-24. Every heading keeps its old ID ("was V-13"); full mapping below |
+| 15 | Whole file | Restructured as a shared register: ownership table at the top that anyone can update, neutral "claimed / open" wording instead of "reserved", instructions for claiming a finding or adding a new one |
 | 14 | Section 1 | Two cross-references corrected: OWASP Dependency-Check pairs with the dependency finding (now V-17), and ZAP's passive scan pairs with the missing-headers finding (now V-19) |
 
 ---
@@ -58,6 +59,65 @@ Only the middle block moved. Dinith's six and V-17 to V-24 keep their numbers.
 | V-10 | V-14 | Mass assignment on appointments | open |
 | V-11 | V-15 | Every doctor sees every patient | open |
 | V-12 | V-16 | Booking needs two roles | open |
+
+---
+
+## 👥 Who is working on what
+
+Live ownership list — **update this table when you claim something**, then say so in the group chat.
+Full details for each finding are in Sections 2, 3 and 3b.
+
+| ID | Finding | Severity | OWASP 2025 | Owner | Status |
+|---|---|---|---|---|---|
+| V-01 | Secret key committed to GitHub | High | A04 | **Dinith** | claimed |
+| V-02 ⭐ | `SameSite=None` + no CSRF token | Medium | A01 | **Dinith** | claimed |
+| V-03 | JWT carries no role/audience/issuer | Medium | A07 | **Dinith** | claimed |
+| V-04 ⭐ | Stack trace leaked to anyone | Medium | A10 | **Dinith** | claimed |
+| V-05 ⭐ | Logout does not revoke the token | Medium | A07 | **Dinith** | claimed |
+| V-06 ⭐ | One request crashes the whole server | High | A10 | **Dinith** | claimed |
+| V-07 | NoSQL operator injection | High | A05 | **Pasan** | claimed |
+| V-08 ⭐ | Wrong sanitiser on a regex query | Medium | A05 | **Pasan** | claimed |
+| V-09 | Uploads: any file type or size, orphaned files | Medium | A06 | **Pasan** | claimed |
+| V-10 | Contact form: spoofable sender, no throttling | Medium | A06 | **Pasan** | claimed |
+| V-11 | Client decides the price | High | A06 | — | **open** |
+| V-12 | Cart has no login check | Critical | A01 | — | **open** |
+| V-13 | IDOR — read another user's cart | Critical | A01 | — | **open** |
+| V-14 ⭐ | Mass assignment on appointments | High | A01 | — | **open** |
+| V-15 | Every doctor sees every patient | Medium | A01 | — | **open** |
+| V-16 | Booking needs two roles at once | Medium | A06 | — | open · supporting only |
+| V-17 | 23 vulnerable dependencies | Critical | A03 | — | **open** |
+| V-18 | No rate limiting | High | A07 | — | **open** |
+| V-19 | No security headers | Medium | A02 | — | **open** |
+| V-20 | Null crash on a deleted user's token | Medium | A10 | — | **open** |
+| V-21 | CORS typo disables the restriction | Low | A02 | — | **open** |
+| V-22 | Review routes have no login check | Medium | A01 | — | **open** |
+| V-23 | Timing comparison (false positive) | Info | A04 | — | triaged · supporting only |
+| V-24 | API key in client-side code | Low | A04 | — | open · supporting only |
+
+**The brief needs at least 7 distinct vulnerabilities from the group.** With Dinith's six and Pasan's
+four we already pass that, so the remaining 14 are about depth, coverage and everyone having their own
+work to show — "individual contribution" is its own row in the marking rubric.
+
+### How to claim one
+
+1. Pick any finding marked **open**. Nothing is reserved — take whatever interests you.
+2. Post it in the group chat so two people do not start the same thing.
+3. Put your name in the table above and commit that change.
+4. Follow [`TEAM-GUIDE.md`](TEAM-GUIDE.md): evidence before, fix, evidence after, PR.
+
+A rough guide: **at least 4 each**, and try to spread across different OWASP categories rather than
+taking four of the same kind. V-16, V-23 and V-24 are marked *supporting only* — they belong in the
+report but are too weak to count as one of your four. The reasons are with each finding.
+
+### Found something new?
+
+Very welcome — the list is not closed. Add it at the end as the next free ID (V-25, V-26 …) with the same
+structure the others use: what it is, where, how you proved it, OWASP 2025 category, CWE, and how to fix
+it. The **golden rule** applies: only add it once you have seen it happen yourself, with the output saved.
+
+One known gap worth hunting: **A09 Logging & Alerting Failures** — no finding covers it yet, and the app
+has no security event logging at all (failed logins and authorisation failures leave no trace). That
+looks provable.
 
 ---
 
@@ -169,13 +229,13 @@ Be honest about this in the report until they are done.
 
 ---
 
-## Section 2 — Owner: Dinith (Member 1) · V-01 to V-06 — RESERVED, do not pick these
+## Section 2 — V-01 to V-06 · claimed by Dinith
 
-These six are taken. They form one story — **who you are, how the server remembers you, what happens when
-things go wrong, and where the secrets live** — which is the same subject as the Google login feature
-Member 1 is building. All six are confirmed with captured evidence.
+Dinith is working on these six. They form one story — **who you are, how the server remembers you, what
+happens when things go wrong, and where the secrets live** — which is the same subject as the Google
+login feature he is also building. All six are confirmed with captured evidence.
 
-⭐ marks the ones that demo well on video. Member 1 has three of them.
+⭐ marks the ones that demo well on video.
 
 ---
 
@@ -382,19 +442,14 @@ request diffs stay clean.
 
 ---
 
-## Section 3 — Assigned and open findings
+## Section 3 — V-07 to V-10 · claimed by Pasan (IT22062642)
 
-**Numbering:** findings are ordered by owner — Dinith's six first (Section 2), then Pasan's four, then
-everything still unclaimed. Headings show the old ID (e.g. "was V-13") because the first draft of this
-list used a different order; the mapping table is in the Revision notes.
+Pasan is working on these four: **what the application accepts as input, and what it does with it** —
+NoSQL injection, a sanitiser applied to the wrong sink, file uploads, and the contact form.
 
----
-
-### Owner: Pasan (IT22062642) · V-07 to V-10 — injection and input handling
-
-These four are taken. They form one story — **what the application accepts as input, and what it does
-with it** — covering NoSQL injection, a sanitiser applied to the wrong sink, file uploads and the
-contact form.
+**Numbering note:** V-numbers are *our own* IDs, not OWASP ones. They are ordered by owner simply so the
+list is easy to read. Headings show the old ID (e.g. "was V-13") because the first draft used a different
+order; the mapping table is in the Revision notes.
 
 ### V-07 (was V-13) · Database queries can be manipulated by sending an object instead of text
 **Severity: High (7.5)** · OWASP A05:2025 (Injection) · CWE-943 (NoSQL injection)
@@ -570,10 +625,11 @@ Rate-limit the route. Upgrade nodemailer.
 
 ---
 
-## Open findings · Members 3 and 4 choose from here
+## Section 3b — V-11 to V-24 · unclaimed, open to anyone
 
-**14 findings (V-11 to V-24), not divided.** Pick whatever interests you. Post your picks in the group
-chat so we do not double up.
+**14 findings (V-11 to V-24), nobody assigned yet.** Anyone can take any of these — including Dinith or
+Pasan if they finish early. Claim one by posting in the group chat and adding your name to the ownership
+table at the top of this file.
 
 **Minimum 4 each.** This is a **team rule** — the brief itself only asks for at least 7 *distinct*
 vulnerabilities across the whole group. Also a team rule: cover **at least 6 different OWASP
