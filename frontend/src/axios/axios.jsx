@@ -1,7 +1,8 @@
 import axios from "axios";
+import { base_url } from "../Api/config";
 
 const api = axios.create({
-    baseURL: "https://medi-hub.onrender.com/api/v1",
+    baseURL: base_url,
 
 })
 

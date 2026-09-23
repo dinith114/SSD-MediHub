@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { DoctorsCard } from "../../import-export/ImportExport";
 import axios from "axios";
+import { base_url } from "../../Api/config";
 
 function AllDoctorsPage() {
   const [doctors, setDoctors] = useState([]);
@@ -9,7 +10,7 @@ function AllDoctorsPage() {
     const fetchDoctors = async () => {
       try {
         const response = await axios.get(
-          "http://localhost:8000/api/v1/user/alldoctors"
+          `${base_url}/user/alldoctors`
         );
         console.log(response.data.data);
         setDoctors(response.data.data);

@@ -142,3 +142,6 @@ dist
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+# Upload staging folder: keep the folder, never commit uploaded files
+public/temp/*
+!public/temp/.gitkeep
