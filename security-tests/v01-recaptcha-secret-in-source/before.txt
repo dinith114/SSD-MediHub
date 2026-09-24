@@ -1,0 +1,34 @@
+V-01 reCAPTCHA secret hardcoded in source
+=========================================
+
+state    : BEFORE the fix
+captured : 2026-09-23T07:02:10.461Z
+branch   : test/dinith/v01-v06-before-evidence
+commit   : 13124a4
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The Google reCAPTCHA server-side secret is a string literal in the source, and it
+  has been in the public git history since the day it was written.
+
+METHOD: white box — read the source, then search the full git history
+
+$ grep -n "secret:" backend/src/controllers/login_logout.controller.js
+  25:            secret: '6Ldzteop****************************n1Uy',
+  (value masked here on purpose; the full string is at the file and line above)
+
+$ git log --all --format="%h %ad %an  %s" --date=short -S "<the secret>" -- backend/src/controllers/login_logout.controller.js
+  0af22df 2024-05-29 Antriksh  feat: implemented-recaptcha
+
+  The oldest line above is when the secret became public. It is still reachable by
+  anyone who clones the repository, so rewriting the file does not undo the exposure.
+
+SECOND OPINION (run by hand, then paste the output here)
+  pip install detect-secrets
+  detect-secrets scan backend/src backend/app.js frontend/src dashboard/src
+  Expected: two hits on this file — 'Base64 High Entropy String' and 'Secret Keyword'.
+
+NOTE FOR THE REPORT
+  We cannot rotate this key: the reCAPTCHA account belongs to the original author,
+  not to us. Our fix moves it to an environment variable and fails closed when unset.

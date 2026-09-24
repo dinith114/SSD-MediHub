@@ -1,0 +1,31 @@
+V-02 SameSite=None on session cookies, and no CSRF token anywhere
+=================================================================
+
+state    : BEFORE the fix
+captured : 2026-09-23T07:02:10.461Z
+branch   : test/dinith/v01-v06-before-evidence
+commit   : 13124a4
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The session cookie is issued with SameSite=None, so the browser attaches it to
+  requests started by other websites. With no CSRF token to check, a malicious page
+  can act as a logged-in user.
+
+METHOD: black box — read the Set-Cookie header the server sends
+
+$ curl -i -X POST $BASE/api/v1/user/patient/register -d '{...}'
+  HTTP 200
+  Set-Cookie: patientToken=eyJhbGciOiJIUzI1Ni….eyJpZCI6IjZhYjM3OTcyOTAxNjVjZDJhNWIzOTE4YyIsImlhdCI6MTc5MDE0NjkzMCwiZXhwIjoxNzkwMjMzMzMwfQ.HgdvWHk4ggOWXqPuf3clBu6Mq06rYh5cGal9AyOERVY; Path=/; Expires=Thu, 24 Sep 2026 07:02:10 GMT; HttpOnly; Secure; SameSite=None
+
+  SameSite : None   <-- the problem
+  HttpOnly : yes (correct, but does not stop CSRF)
+  Secure   : yes
+
+$ grep -ril "csrf" backend/src backend/app.js
+  (no matches — no CSRF protection exists)
+
+TO FINISH THIS ONE
+  Build a small attack page that POSTs to a state-changing route, open it while
+  logged in as admin, and screenshot the result. That is the demo for the video.
