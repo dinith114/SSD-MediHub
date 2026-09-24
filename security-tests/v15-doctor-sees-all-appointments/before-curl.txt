@@ -1,0 +1,34 @@
+V-15 Every doctor can read every patient's appointments
+=======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:36:50Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab55fac2afa3227fe052584
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab55fac2afa3227fe052580
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab55fad2afa3227fe052588   (Dr Beta's id: 6ab55fad2afa3227fe05258b)
+  MED1=6ab55fad2afa3227fe05258e  MED2=6ab55fad2afa3227fe05258f  CART_ID=6ab55fad2afa3227fe052783  APPT_ID=6ab55fad2afa3227fe052785
+
+------------------------------------------------------------------------------
+Dr Alpha asks for the appointment list. The only seeded appointment is Alice's, with Dr Beta.
+$ curl -s -i "$BASE/api/v1/appointment/getall" -H "Cookie: $ALPHA"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 531
+ETag: W/"213-JPX+1HHdK2dx+M+P1rzCnlqe3XM"
+Date: Thu, 24 Sep 2026 17:36:51 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[{"_id":"6ab55fad2afa3227fe052785","patient":"6ab55fac2afa3227fe05257e","patientFirstName":"Alice","patientLastName":"Adams","doctor":"6ab55fad2afa3227fe05258b","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"3000","city":"Kandy","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"Oncology","status":"Pending","createdAt":"2026-09-24T17:36:45.448Z","updatedAt":"2026-09-24T17:36:45.448Z","__v":0}],"message":"All Appointments List"}
+
+Dr Alpha is not the doctor on this appointment, yet receives the patient's name, city,
+pincode, date and department.

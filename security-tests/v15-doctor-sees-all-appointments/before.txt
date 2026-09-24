@@ -1,0 +1,34 @@
+V-15 Every doctor can read every patient's appointments
+=======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:41:47.965Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: before-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  getAllAppointments() runs Appointment.find() with no filter. Any doctor receives
+  every appointment in the system, including patients they have never treated.
+
+METHOD: black box — log in as a doctor unrelated to the seeded appointment
+
+  caller      : alpha (Doctor, id 6ab560a539b92768520592c2)
+  appointment : 6ab560a539b92768520594bf  — patient Alice, booked with Dr Beta (id 6ab560a539b92768520592c5)
+
+> fetch GET $BASE/api/v1/appointment/getall [with alpha's session cookie]
+  HTTP 200
+  {"statusCode":200,"data":[{"_id":"6ab560a539b92768520594bf","patient":"6ab560a439b92768520592b8","patientFirstName":"Alice","patientLastName":"Adams","doctor":"6ab560a539b92768520592c5","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"3000","city":"Kandy","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"Oncology","status":"Pending","createdAt":"2026-09-24T17:40:53.644Z","updatedAt":"2026-09-24T17:40:53.644Z","__v":0}],"message":"All Appointments List"}
+
+  RESULT: 1 appointment(s) belonging to other doctors returned to Dr Alpha.
+          Exposed: patient "Alice Adams", city Kandy, pincode 20000,
+          date 2026-11-01T00:00:00.000Z, department "Oncology".
+
+WHITE BOX
+  backend/src/controllers/appointment.controller.js:92:  const appointments = await Appointment.find();
+
+  A patient's name, location and medical department (Oncology) is health data.
+  Compare the original README's claim of "safeguarding sensitive patient data".

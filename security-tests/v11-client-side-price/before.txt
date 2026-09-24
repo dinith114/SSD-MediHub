@@ -1,0 +1,41 @@
+V-11 The client decides the price and the server stores it
+==========================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:41:47.965Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: before-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The cart never looks the price up. Whatever totalPrice the browser sends is
+  saved as-is, so a patient can put 99 items in the cart for a total of 1.
+
+METHOD: black box (request tampering, sent by this Node script) + white box (read the source)
+
+STEP 1 — the real price, from the server's own catalogue
+> fetch GET $BASE/api/v1/medicines/search-medicine?search=Testomycin
+  "Testomycin 001"  price 101  (id 6ab560a539b92768520592c8)
+  99 x 101 = 9999   <-- what the total should be
+
+STEP 2 — logged in as dana (Patient, id 6ab560a539b92768520592be), send a total of 1 instead
+> fetch POST $BASE/api/v1/medicines-cart/add-to-cart [with dana's session cookie]
+  body: {"userId":"6ab560a539b92768520592be","medicineId":"6ab560a539b92768520592c8","quantity":99,"totalPrice":1,"status":"Pending"}
+  HTTP 201
+  {"statusCode":201,"data":{"userId":"6ab560a539b92768520592be","medicineId":"6ab560a539b92768520592c8","quantity":99,"totalPrice":1,"status":"Pending","_id":"6ab560db39b92768520594c3","createdAt":"2026-09-24T17:41:47.888Z","updatedAt":"2026-09-24T17:41:47.888Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+
+  RESULT: stored quantity=99, totalPrice=1 (should be 9999) — client price accepted
+
+WHITE BOX — where the price comes from
+  backend/src/controllers/UserCart.controller.js:8:  const { userId, medicineId, quantity, totalPrice, status } = req.body;
+  backend/src/controllers/payment.controller.js:7:  amount: Number(req.body.amount * 100),
+
+  Both the cart total and the Razorpay order amount come straight from req.body.
+  Neither reads Medicine.price.
+
+NOT TESTED — /payment/checkout
+  Calling it crashes the whole server (V-06: `instance` is never defined), so the
+  payment side is shown from the source only. The cart side above is the live proof.
