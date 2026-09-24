@@ -79,11 +79,11 @@ Full details for each finding are in Sections 2, 3 and 3b.
 | V-08 ⭐ | Wrong sanitiser on a regex query | Medium | A05 | **Pasan** | claimed |
 | V-09 | Uploads: any file type or size, orphaned files | Medium | A06 | **Pasan** | claimed |
 | V-10 | Contact form: spoofable sender, no throttling | Medium | A06 | **Pasan** | claimed |
-| V-11 | Client decides the price | High | A06 | — | **open** |
-| V-12 | Cart has no login check | Critical | A01 | — | **open** |
-| V-13 | IDOR — read another user's cart | Critical | A01 | — | **open** |
-| V-14 ⭐ | Mass assignment on appointments | High | A01 | — | **open** |
-| V-15 | Every doctor sees every patient | Medium | A01 | — | **open** |
+| V-11 | Client decides the price | High | A06 | **Samadinee** | claimed |
+| V-12 | Cart has no login check | Critical | A01 | **Samadinee** | claimed |
+| V-13 | IDOR — read another user's cart | Critical | A01 | **Samadinee** | claimed |
+| V-14 ⭐ | Mass assignment on appointments | High | A01 | **Samadinee** | claimed |
+| V-15 | Every doctor sees every patient | Medium | A01 | **Samadinee** | claimed |
 | V-16 | Booking needs two roles at once | Medium | A06 | — | open · supporting only |
 | V-17 | 23 vulnerable dependencies | Critical | A03 | — | **open** |
 | V-18 | No rate limiting | High | A07 | — | **open** |

