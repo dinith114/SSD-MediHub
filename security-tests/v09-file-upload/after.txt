@@ -1,0 +1,15 @@
+V-09 · Unrestricted file upload — AFTER FIX
+Fix: multer.middleware.js (fileFilter + 2MB limit + random filename) and
+     ApiError.js errorHandler (delete temp file on any failure).
+Captured: 2026-09-26 02:19 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+[1] fake .exe                 -> Only PNG, JPG or WEBP image files are allowed  [HTTP 400]
+[2] 3 MB .png (over 2MB limit) -> File too large. Maximum size is 2 MB.  [HTTP 400]
+[3] valid .png, fields blank   -> Please Fill All Medicine Details!  [HTTP 400]
+    (image passed the filter; controller rejected missing fields; temp file cleaned)
+
+[4] files left in public/temp: NONE - clean
+
+RESULT: non-image rejected (type), oversized rejected (2MB), no orphaned files.
+        Valid images still upload normally.
