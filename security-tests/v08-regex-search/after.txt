@@ -1,0 +1,16 @@
+V-08 · Regex/NoSQL injection in medicine search — AFTER FIX
+Fix: medicine.controller.js searchMedicine now requires a string, caps it at
+     64 chars, escapes regex metacharacters (utilis/escapeRegex.js) before the
+     $regex query, and adds maxTimeMS(2000). Removed the misused validator.escape.
+Captured: 2026-09-26 03:11 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+[1] ATTACK  search=zzzznomatchzzzz|.*   -> 0 results   (before: 500 = whole catalogue)
+[2] real    search=Testomycin 001       -> 1 result    (legitimate search still works)
+[3] missing search param                -> A search term is required.   (before: crashed with HTTP 500)
+[4] literal search=a|b                  -> 0 results   (| now matched literally, not as regex)
+
+RESULT: regex metacharacters are escaped, so injected patterns like |.* are
+        searched for as text and match nothing. Real searches are unaffected,
+        the missing-parameter crash is fixed, and a 2s query timeout guards
+        against pathological patterns.

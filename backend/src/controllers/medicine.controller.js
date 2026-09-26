@@ -1,9 +1,9 @@
-import validator from "validator";
 import { Medicine } from "../models/medicine.model.js";
 import { ApiError } from "../utilis/ApiError.js";
 import { ApiResponse } from "../utilis/ApiResponse.js";
 import asyncHandler from "../utilis/asyncHandler.js";
 import { uploadOnCloudinary } from "../utilis/cloudinary.js";
+import { escapeRegex } from "../utilis/escapeRegex.js";
 
 //! Adding new medicine by admin only
 export const addNewMedicine = asyncHandler(async (req, res) => {
@@ -132,13 +132,25 @@ export const getSingleMedicine = asyncHandler(async (req, res) => {
 
 //! Search medicine on the basis of name and category
 export const searchMedicine = asyncHandler(async (req, res) => {
-    const search = validator.escape(req.query.search);
+    // V-08 fix: the search term must be a plain string. (A missing param used
+    // to crash with a 500; an array/object could change the query.)
+    const raw = req.query.search;
+    if (typeof raw !== "string" || raw.trim() === "") {
+        throw new ApiError(400, "A search term is required.");
+    }
+
+    // V-08 fix: cap the length, then escape every regex metacharacter so the
+    // term is matched literally. validator.escape() (used before) only escapes
+    // HTML, not regex, so "|.*" used to rewrite the query and return everything.
+    const search = escapeRegex(raw.trim().slice(0, 64));
+
     const medicines = await Medicine.find({
         $or: [
             { name: { $regex: search, $options: "i" } },
             { category: { $regex: search, $options: "i" } },
         ],
-    });
+    }).maxTimeMS(2000); // stop any pathological query after 2 seconds
+
     if (!medicines) {
         throw new ApiError(404, "No medicines found");
     }
