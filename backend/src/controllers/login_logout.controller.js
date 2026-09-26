@@ -1,3 +1,4 @@
+import axios from "axios";
 import asyncHandler from "../utilis/asyncHandler.js";
 import { ApiError } from "../utilis/ApiError.js";
 import { User } from "../models/user.model.js";
@@ -19,14 +20,22 @@ export const login = asyncHandler(async (req, res, next) => {
         throw new ApiError(400, "Password and Confirm Password do not match!");
     }
 
-    // Verify the reCAPTCHA token
+    // Verify the reCAPTCHA token.
+    // V-01 fix: the reCAPTCHA server secret is read from the environment, never hardcoded.
+    // Fail closed — if the secret is not configured, refuse the login instead of skipping
+    // the check, so a misconfigured deployment can never silently disable bot protection.
+    const recaptchaSecret = process.env.RECAPTCHA_SECRET;
+    if (!recaptchaSecret) {
+        throw new ApiError(500, "Server misconfiguration: reCAPTCHA secret is not set");
+    }
+
     const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
         params: {
-            secret: '6LdzteopAAAAAHwBYUTrGjupn-LuF8ox6Uc7n1Uy',
+            secret: recaptchaSecret,
             response: token
         }
     });
-    
+
     if (!response.data.success) {
         throw new ApiError(400, "reCAPTCHA verification failed");
     }
