@@ -1,0 +1,25 @@
+V-10 · Contact form hardening — AFTER FIX
+Fix: contactus.controller.js (validate email, block object/CRLF input, cap
+     length, send From our address with user in replyTo) +
+     rateLimit.middleware.js + contactus.routes.js (throttle /send).
+Captured: 2026-09-26 02:32 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+Part 1 — rate limiting (limit: 5 messages / 15 min / IP):
+  15 rapid messages -> 5 reached the app, 10 blocked with HTTP 429
+  (before the fix: 15 accepted, 0 blocked)
+
+Part 2 — input validation:
+  [1] 'notanemail'                 -> Please enter a valid email address.  [400]
+  [2] email as object {$gt:""}      -> Invalid input.                       [400]
+  [3] email with CR/LF injection   -> Please enter a valid email address.  [400]
+  [4] a normal valid message       -> accepted (still works)
+
+Sender spoofing (verified in code): the mail is now sent with
+  from: process.env.SMTP_USER   (our own verified address)
+  replyTo: <the visitor's email> (replies still reach them)
+so a visitor can no longer put an arbitrary address in the From header.
+
+RESULT: spoofed/from-header impersonation removed, object and CRLF injection
+        rejected, invalid emails rejected, and the form is rate limited.
+        Legitimate messages are unaffected.
