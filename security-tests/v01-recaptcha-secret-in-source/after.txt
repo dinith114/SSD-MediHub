@@ -1,0 +1,38 @@
+V-01 reCAPTCHA secret hardcoded in source — AFTER FIX
+=====================================================
+
+state    : AFTER the fix
+captured : 2026-09-26T06:07:47Z
+branch   : fix/it22065230/v01-recaptcha-secret-to-env
+target   : source code + git working tree
+
+------------------------------------------------------------------------------
+WHAT THE FIX DID
+  1. Removed the hardcoded reCAPTCHA secret from login_logout.controller.js.
+  2. The secret is now read from process.env.RECAPTCHA_SECRET.
+  3. Fail closed: if the env var is not set, login is rejected (HTTP 500 config
+     error) instead of silently skipping the reCAPTCHA check.
+  4. Added the missing 'import axios' so the control actually runs.
+  5. Documented RECAPTCHA_SECRET in backend/.env.example.
+
+METHOD: white box — re-run the same checks that found it (see before.txt)
+
+$ grep -rn "6Ldzteop" backend/src
+  GONE — no hardcoded secret in backend/src
+
+$ grep -n "process.env.RECAPTCHA_SECRET\|import axios" backend/src/controllers/login_logout.controller.js
+  1:import axios from "axios";
+  27:    const recaptchaSecret = process.env.RECAPTCHA_SECRET;
+  28:    if (!recaptchaSecret) {
+  34:            secret: recaptchaSecret,
+
+$ detect-secrets scan backend/src/controllers/login_logout.controller.js
+  CLEAN — detect-secrets finds no secret in this file now
+  (compare before.txt: it previously flagged line 25 twice)
+
+RESIDUAL RISK — state this honestly in the report
+  The old secret is still present in past git commits (0af22df onwards). Removing
+  it from the working tree does not remove it from history. A full remediation
+  would rewrite history with git filter-repo AND rotate the key. We cannot rotate
+  it because the reCAPTCHA account belongs to the original author, so we document
+  this as accepted residual risk and note the correct production procedure.
