@@ -1,0 +1,25 @@
+V-08 · Regex/NoSQL Injection in medicine search — BEFORE FIX (original code)
+Endpoint: GET /api/v1/medicines/search-medicine?search=...  (-> $regex query)
+Captured: 2026-09-25 21:34 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+[1] CONTROL — search for a term that matches nothing:
+    search=zzzznomatchzzzz
+    results returned: 0
+    response size   : 72 bytes
+
+[2] ATTACK — same term + regex metacharacters |.*  (means: OR match anything):
+    search=zzzznomatchzzzz|.*
+    results returned: 500
+    response size   : 196856 bytes
+
+RESULT: control returns 0 medicines (~72 bytes); attack returns the ENTIRE
+        catalogue of 500 medicines (~196KB). The search input reached a
+        MongoDB $regex unsanitised, so |.* rewrote the query.
+
+ALSO VERIFIED IN OWASP ZAP (black box): sent both requests through ZAP's
+browser; ZAP History shows 72 bytes vs 196,856 bytes for the two requests.
+
+CODE (white box): medicine.controller.js line 135 uses validator.escape()
+(an HTML escaper) on a value used in $regex (lines 138-139, both 'name' and
+'category'). validator.escape does NOT escape regex characters — wrong tool.

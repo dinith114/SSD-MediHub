@@ -1,0 +1,20 @@
+V-09 · Unrestricted file upload — BEFORE FIX (original code)
+Endpoint: POST /api/v1/medicines/addmedicine  (admin only; multer, no fileFilter/limits)
+Captured: 2026-09-25 21:36 UTC  |  Tester: Pasan (IT22062642)
+======================================================================
+
+Note: this route is admin-only, so the admin session cookie is used.
+public/temp cleared before the test.
+
+[1] Upload a fake .exe (a program, not an image):
+    app replies: Please Fill All Medicine Details!
+[2] Upload a 5 MB file (no size limit test):
+    app replies: Please Fill All Medicine Details!
+
+[3] Both requests were REJECTED. Contents of backend/public/temp afterwards:
+    big.bin      5000000 bytes
+    fake.exe     51 bytes
+
+RESULT: no file-type check (.exe accepted), no size limit (5MB accepted),
+        and files from FAILED requests are never deleted (orphaned on disk).
+        Repeating with large files fills the server disk (denial of service).
