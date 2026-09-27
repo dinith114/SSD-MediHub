@@ -3,6 +3,7 @@ import { ApiError } from "../utilis/ApiError.js"
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 import { Doctor } from "../models/doctor.model.js"
+import { isTokenRevoked } from "../utilis/tokenBlocklist.js";
 
 
 
@@ -15,6 +16,11 @@ export const isAdminAuthenticated = asyncHandler(
             throw new ApiError(401, "Unauthorized Access!");
         }
         const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+        // V-05 fix: reject a token that has been logged out, even though its
+        // signature is still valid until it expires.
+        if (await isTokenRevoked(token)) {
+            throw new ApiError(401, "Session has been logged out. Please log in again.");
+        }
         req.user = await User.findById(decoded.id);
         if (req.user.role !== "Admin") {
             throw new ApiError(403, `${req.user.role} not authorized for this resource!`)
@@ -35,6 +41,10 @@ export const isPatientAuthenticated = asyncHandler(async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    // V-05 fix: reject a token that has been logged out.
+    if (await isTokenRevoked(token)) {
+        throw new ApiError(401, "Session has been logged out. Please log in again.");
+    }
     req.user = await User.findById(decoded.id);
     if (req.user.role !== "Patient") {
         throw new ApiError(403, `${req.user.role} not authorized for this resource!`)
@@ -54,6 +64,10 @@ export const isDoctorAuthenticated = asyncHandler(async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    // V-05 fix: reject a token that has been logged out.
+    if (await isTokenRevoked(token)) {
+        throw new ApiError(401, "Session has been logged out. Please log in again.");
+    }
     req.doctor = await Doctor.findById(decoded.id);
     if (req.doctor.role !== "Doctor") {
         throw new ApiError(403, `${req.doctor.role} not authorized for this resource!`)
