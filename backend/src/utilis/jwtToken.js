@@ -23,7 +23,11 @@ export const generateToken = (user, message, statusCode, res) => {
             ),
             httpOnly: true,
             secure: true,
-            sameSite: "None"
+            // V-02 fix: was "None", which told the browser to send the session
+            // cookie on cross-site requests — the core enabler of CSRF. "Lax"
+            // stops the cookie being sent on cross-site state-changing requests
+            // while keeping normal same-site use working.
+            sameSite: "Lax"
         })
         .json(new ApiResponse(statusCode, {
             user: {
