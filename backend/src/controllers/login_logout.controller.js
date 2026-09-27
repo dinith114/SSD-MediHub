@@ -1,9 +1,14 @@
 import axios from "axios";
+import bcrypt from "bcrypt";
 import asyncHandler from "../utilis/asyncHandler.js";
 import { ApiError } from "../utilis/ApiError.js";
 import { User } from "../models/user.model.js";
 import { Doctor } from "../models/doctor.model.js"
 import { generateToken } from "../utilis/jwtToken.js";
+
+// V-20 fix: a hash of a throwaway value. When the email has no account, login
+// still checks the password against this, so it takes as long as a real account.
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 10);
 
 
 //! Login the user
@@ -57,10 +62,14 @@ export const login = asyncHandler(async (req, res, next) => {
     }
 
     // Check if user or doctor exists
+    // V-20 fix: the same answer whether or not the account exists. Before, an
+    // unknown email got "User with <role> role not found", so anyone could test
+    // which emails are registered. The dummy comparison keeps the timing the same.
     if (!user) {
-        throw new ApiError(400, `User with ${role} role not found`);
-
+        await bcrypt.compare(password, DUMMY_HASH);
+        throw new ApiError(400, "Invalid email or password");
     }
+
 
     // Check if password matches
     const isPasswordMatched = await user.comparePassword(password);
