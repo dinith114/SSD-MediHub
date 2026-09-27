@@ -1,0 +1,46 @@
+V-02 SameSite=None + no CSRF protection — AFTER FIX
+===================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T04:39:37Z
+branch   : fix/it22065230/v02-samesite-csrf
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THE FIX DID (backend only, no frontend changes)
+  1. Session cookies changed from sameSite:"None" to "Lax" in 4 places:
+     utilis/jwtToken.js (login/register cookie) and the 3 logout handlers in
+     controllers/login_logout.controller.js. The browser no longer sends the
+     session cookie on cross-site state-changing requests.
+  2. Added an Origin/Referer guard in app.js: any POST/PUT/PATCH/DELETE whose
+     Origin (or Referer) is present but not in the allow-list is rejected with 403.
+     A browser always sends Origin on a cross-site request, so a forged request
+     from an attacker page is blocked; legitimate same-site and non-browser
+     requests pass. Defence in depth alongside SameSite.
+
+METHOD: black box — inspect the cookie and probe the Origin guard
+
+  1. Register response Set-Cookie header:
+     Set-Cookie: patientToken=...; Path=/; HttpOnly; Secure; SameSite=Lax
+     (before: SameSite=None — see before.txt)
+
+  2. POST /api/v1/testimonial/add  with Origin: http://evil.com
+     -> HTTP 403  {"success":false,"message":"Cross-site request blocked"}
+
+  3. POST /api/v1/testimonial/add  with Origin: http://localhost:5173
+     -> HTTP 400  (passes the CSRF guard, then the route rejects the empty body)
+        i.e. NOT blocked — legitimate same-site requests still work.
+
+RESULT
+  Before: cookie SameSite=None and no CSRF check of any kind (git grep -i csrf
+          returned nothing) — open to Cross-Site Request Forgery.
+  After:  cookie SameSite=Lax AND a cross-site request from a foreign origin is
+          rejected with 403, while our own site's requests pass. CSRF closed for
+          the same-site deployment.
+
+NOTE FOR THE REPORT
+  Full double-submit CSRF tokens are the textbook gold standard but require
+  frontend changes on every request; documented as further hardening. For a
+  cross-domain deployment SameSite=Lax would block the cookie, so there the
+  token + Origin approach would be primary. On our same-site setup, Lax + Origin
+  check is a correct and sufficient fix.

@@ -24,6 +24,29 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// V-02 fix (CSRF defence in depth): reject state-changing requests whose Origin
+// (or Referer) is present but not in our allow-list. A browser always sends an
+// Origin header on a cross-site request, so a request forged by an attacker's
+// page is blocked here, while legitimate same-site requests and non-browser
+// clients (which send no Origin) pass through. This complements the SameSite=Lax
+// cookie attribute set in utilis/jwtToken.js.
+const allowedOrigins = [process.env.FRONTEND_URL, process.env.DASHBOARD_URL].filter(Boolean);
+app.use((req, res, next) => {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  if (origin) {
+    if (!allowedOrigins.includes(origin)) {
+      return res.status(403).json({ success: false, message: "Cross-site request blocked" });
+    }
+  } else if (referer) {
+    if (!allowedOrigins.some((o) => referer.startsWith(o))) {
+      return res.status(403).json({ success: false, message: "Cross-site request blocked" });
+    }
+  }
+  next();
+});
+
 // import routes
 import userRouter from "./src/routes/user.routes.js";
 import contactUsRouter from "./src/routes/contactus.routes.js";

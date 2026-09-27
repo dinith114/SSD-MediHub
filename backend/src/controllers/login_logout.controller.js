@@ -81,7 +81,7 @@ export const logoutAdmin = asyncHandler(async (req, res, next) => {
             expires: new Date(Date.now()),
             httpOnly: true,
             secure: true,
-            sameSite: "None"
+            sameSite: "Lax" // V-02 fix: was "None" — cleared with the same attributes it was set with
         })
         .json({
             success: true,
@@ -98,7 +98,7 @@ export const logoutPatient = asyncHandler(async (req, res, next) => {
             expires: new Date(Date.now()),
             httpOnly: true,
             secure: true,
-            sameSite: "None"
+            sameSite: "Lax" // V-02 fix: was "None" — cleared with the same attributes it was set with
         })
         .json({
             success: true,
@@ -115,7 +115,7 @@ export const logoutDoctor = asyncHandler(async (req, res, next) => {
             expires: new Date(Date.now()),
             httpOnly: true,
             secure: true,
-            sameSite: "None"
+            sameSite: "Lax" // V-02 fix: was "None" — cleared with the same attributes it was set with
         })
         .json({
             success: true,
