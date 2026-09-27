@@ -2,6 +2,7 @@ import { ApiResponse } from "../utilis/ApiResponse.js";
 import { ApiError } from "../utilis/ApiError.js";
 import asyncHandler from "../utilis/asyncHandler.js";
 import { UserCart } from "../models/UserCart.model.js";
+import { Medicine } from "../models/medicine.model.js";
 
 
 export const ToggleCart = asyncHandler(async (req, res) => {
@@ -13,12 +14,21 @@ export const ToggleCart = asyncHandler(async (req, res) => {
     if (!medicineId || !quantity || !totalPrice) {
         throw new ApiError(400, "Please Fill Full Form!");
     }
+    if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new ApiError(400, "Quantity must be a positive whole number");
+    }
+
+    // V-11 fix: the price is read from the Medicine collection, not the request.
+    const medicine = await Medicine.findById(medicineId);
+    if (!medicine) {
+        throw new ApiError(404, "Medicine not found");
+    }
+    const unitPrice = Math.max(0, medicine.price - (medicine.discount || 0));
+    const totalPrice = unitPrice * quantity;
 
     let existedCart = await UserCart.findOne({ userId, medicineId });
-    console.log("existedCart values bib",existedCart);
     if (existedCart) {
-        const remvefromcart =  await UserCart.findByIdAndDelete( existedCart._id);
-        console.log("existedCart",remvefromcart);
+        const remvefromcart = await UserCart.findByIdAndDelete(existedCart._id);
         return res.json(new ApiResponse(200, {remvefromcart:true}, "Medicine Deleted from Cart Successfully!"));
     }
 

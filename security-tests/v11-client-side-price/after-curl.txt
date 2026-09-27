@@ -1,0 +1,57 @@
+V-11 The client decides the price and the server stores it
+==========================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T07:29:27Z
+branch   : fix/it22083500/v11-server-side-pricing
+commit   : ea56022
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab8c5d16cf80b5d75dfcd45
+  CAROL=patientToken=<carol's JWT>  CAROL_ID=6ab8c5d16cf80b5d75dfcd43
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab8c5d16cf80b5d75dfcd41
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab8c5d26cf80b5d75dfcd49   (Dr Beta's id: 6ab8c5d26cf80b5d75dfcd4c)
+  MED1=6ab8c5d26cf80b5d75dfcd4f  MED_NEG=a2ab525d83ce28bb008a93c3  MED2=3f76d25490f475da889a94e7  MED4=bef2820a008aa1dd4e58013f
+  CART_ID=6ab8c5d26cf80b5d75dfcf44  APPT_ID=6ab8c5d26cf80b5d75dfcf46
+
+------------------------------------------------------------------------------
+STEP 1 — the real price of the medicine, from the server
+$ curl -s "$BASE/api/v1/medicines/get/$MED1"
+{"statusCode":200,"data":{"_id":"6ab8c5d26cf80b5d75dfcd4f","name":"Testomycin 001","price":101,"description":"Seeded test medicine number 1 for local security testing.","category":"Syrup","manufacturer":"Test Labs 1","expiryDate":"2030-01-01T00:00:00.000Z","stock":50,"image":"https://example.invalid/medicine.png","discount":1,"__v":0,"createdAt":"2026-09-27T07:29:22.326Z","updatedAt":"2026-09-27T07:29:22.326Z"},"message":"Medicine fetched successfully!"}
+
+ATTACK 1 — logged in as Dana, add 99 of it to her cart with totalPrice 1
+$ curl -s -i -X POST "$BASE/api/v1/medicines-cart/add-to-cart" -H "Cookie: $DANA" -H "Content-Type: application/json" -d "{\"userId\":\"$DANA_ID\",\"medicineId\":\"$MED1\",\"quantity\":99,\"totalPrice\":1,\"status\":\"Pending\"}"
+HTTP/1.1 201 Created
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 322
+ETag: W/"142-ETi6MZ7eGvdUcIHnw9K+2jq/2Pc"
+Date: Sun, 27 Sep 2026 07:29:27 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":201,"data":{"userId":"6ab8c5d16cf80b5d75dfcd45","medicineId":"6ab8c5d26cf80b5d75dfcd4f","quantity":99,"totalPrice":9900,"status":"Pending","_id":"6ab8c5d76cf80b5d75dfcf4b","createdAt":"2026-09-27T07:29:27.959Z","updatedAt":"2026-09-27T07:29:27.959Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+
+Compare "price" in step 1 with "totalPrice" stored above (99 x price is the honest total).
+
+ATTACK 2 — same patient, send a NEGATIVE total (-500) on a different medicine
+$ curl -s -i -X POST "$BASE/api/v1/medicines-cart/add-to-cart" -H "Cookie: $DANA" -H "Content-Type: application/json" -d "{\"userId\":\"$DANA_ID\",\"medicineId\":\"$MED_NEG\",\"quantity\":2,\"totalPrice\":-500,\"status\":\"Pending\"}"
+HTTP/1.1 404 Not Found
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 48
+ETag: W/"30-UlZPeBCycHd54eZ0/toLeuBAI58"
+Date: Sun, 27 Sep 2026 07:29:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"message":"Medicine not found"}
+
+A negative total is stored as-is (the model only checks the field is present).
+/payment/checkout is not called: it crashes the whole server (V-06).

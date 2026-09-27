@@ -108,7 +108,10 @@ const newMedicineId = () => randomBytes(12).toString("hex");
 async function v11(medA, medBId) {
     // ATTACK 1 — a total of 1 for 99 items.
     const qty = 99;
-    const honest = medA.price * qty;
+    // The app prices a line as quantity x (price - discount) (see frontend
+    // Api/index.js), so the honest total subtracts the discount too.
+    const unit = Math.max(0, medA.price - (medA.discount || 0));
+    const honest = unit * qty;
     const body1 = { userId: acc.dana.id, medicineId: medA._id, quantity: qty, totalPrice: 1, status: "Pending" };
     const res1 = await call("POST", "/api/v1/medicines-cart/add-to-cart", { cookie: acc.dana.cookie, body: body1 });
     const s1 = res1.json?.data;
@@ -132,8 +135,8 @@ async function v11(medA, medBId) {
             "",
             "STEP 1 — the real price, from the server's own catalogue",
             `> fetch GET $BASE/api/v1/medicines/get/${medA._id}`,
-            `  "${medA.name}"  price ${medA.price}  (id ${medA._id})`,
-            `  ${qty} x ${medA.price} = ${honest}   <-- what the total should be`,
+            `  "${medA.name}"  price ${medA.price}  discount ${medA.discount || 0}  (id ${medA._id})`,
+            `  ${qty} x (${medA.price} - ${medA.discount || 0}) = ${honest}   <-- what the total should be`,
             "",
             `ATTACK 1 — send a total of 1 instead of ${honest}`,
             `> fetch POST $BASE/api/v1/medicines-cart/add-to-cart ${ck("dana")}`,
@@ -155,12 +158,17 @@ async function v11(medA, medBId) {
                     `negative total rejected or corrected (stored ${s2.totalPrice})`)
                 : `  RESULT: nothing stored (HTTP ${res2.status}) — the negative price was refused`,
             "",
-            "WHITE BOX — where the price comes from",
-            ...(await grepSource("backend/src/controllers/UserCart.controller.js", /req\.body|totalPrice,$/)),
-            ...(await grepSource("backend/src/controllers/payment.controller.js", /amount:/)),
+            "WHITE BOX — where the cart total comes from",
+            ...(await grepSource("backend/src/controllers/UserCart.controller.js", /totalPrice|Medicine\.findById|unitPrice/)),
             "",
-            "  Both the cart total and the Razorpay order amount come straight from req.body.",
-            "  Neither reads Medicine.price.",
+            "  Before the fix the stored totalPrice was taken straight from req.body.",
+            "  After the fix the server looks the Medicine up and computes the total itself,",
+            "  so the lines above show Medicine.findById / unitPrice instead of a client value.",
+            "",
+            "  The Razorpay order amount still reads req.body.amount:",
+            ...(await grepSource("backend/src/controllers/payment.controller.js", /amount:/)),
+            "  Fixing the /payment/checkout side is tracked with V-06 (that endpoint crashes",
+            "  until the Razorpay client is wired up), so the live proof here is the cart.",
             "",
             "NOT TESTED — /payment/checkout",
             "  Calling it crashes the whole server (V-06: `instance` is never defined), so the",
