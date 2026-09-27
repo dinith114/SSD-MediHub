@@ -1,4 +1,4 @@
-V-17 Known-vulnerable libraries pinned in the lockfile
+V-16 Known-vulnerable libraries pinned in the lockfile
 ======================================================
 
 state    : BEFORE the fix

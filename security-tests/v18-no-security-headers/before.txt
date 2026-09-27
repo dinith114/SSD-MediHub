@@ -1,4 +1,4 @@
-V-19 The API sends no security headers
+V-18 The API sends no security headers
 ======================================
 
 state    : BEFORE the fix

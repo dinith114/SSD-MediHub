@@ -1,11 +1,11 @@
-V-17 Known-vulnerable libraries pinned in the lockfile
+V-16 Known-vulnerable libraries pinned in the lockfile
 ======================================================
 
 state    : AFTER the fix
-captured : 2026-09-27T12:34:43.496Z
+captured : 2026-09-27T15:55:32.958Z
 branch   : fix/it22064936/v16-vulnerable-dependencies
-commit   : 4d1c400
-tool     : npm audit (npm 11.2.0) against the public registry — run by security-tests/capture-v17-v26.mjs
+commit   : 65c1d3b
+tool     : npm audit (npm 11.2.0) against the public registry — run by security-tests/capture-v16-v20.mjs
 target   : backend/package.json + backend/package-lock.json  (no server needed)
 
 ------------------------------------------------------------------------------

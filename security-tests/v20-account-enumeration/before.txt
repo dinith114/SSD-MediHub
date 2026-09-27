@@ -1,4 +1,4 @@
-V-26 Sign-up and login reveal which accounts exist, and their role
+V-20 Sign-up and login reveal which accounts exist, and their role
 ==================================================================
 
 state    : BEFORE the fix
