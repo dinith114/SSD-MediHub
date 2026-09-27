@@ -1,0 +1,57 @@
+V-19 Passwords written to the server log, no security event logging
+===================================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T11:09:26.088Z
+branch   : fix/it22064936/v19-passwords-in-logs
+commit   : 4d3506e
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  What the server writes to its own console (its log): whether secrets and personal data
+  end up there, and whether failed logins and forged tokens leave any trace.
+
+METHOD: black box requests, while this script records everything the server prints
+
+THE SOURCE
+  logging library in backend/package.json : none
+
+TEST 1 — the admin adds a doctor, with password "Evidence-Doc-Pass-2026!"
+> fetch POST $BASE/api/v1/user/doctor/addnew  [admin's session cookie, multipart form, no avatar file]
+  HTTP 400
+  {"success":false,"message":"Doctor Avatar Path Not Found!"}
+
+  server console during this request:
+  | (nothing — not a single line)
+
+TEST 2 — an anonymous visitor submits a review
+> fetch POST $BASE/api/v1/testimonial/add  [no cookie]
+  HTTP 400
+  {"success":false,"message":"Testimonial Image Path Not Found!"}
+
+  server console during this request:
+  | (nothing — not a single line)
+
+TEST 3 — six security events: 3 forged admin tokens, 3 wrong admin passwords
+  forged admin token, attempt 1           -> HTTP 400  {"success":false,"message":"Json Web Token is invalid, Try again!"}
+  forged admin token, attempt 2           -> HTTP 400  {"success":false,"message":"Json Web Token is invalid, Try again!"}
+  forged admin token, attempt 3           -> HTTP 400  {"success":false,"message":"Json Web Token is invalid, Try again!"}
+  wrong password for the admin, attempt 1 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+  wrong password for the admin, attempt 2 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+  wrong password for the admin, attempt 3 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+
+  server console during these six requests:
+  | {"time":"2026-09-27T11:09:47.485Z","level":"warn","event":"auth.token_invalid","status":400,"method":"GET","path":"/api/v1/user/admin/me","ip":"::1","reason":"Json Web Token is invalid, Try again!"}
+  | {"time":"2026-09-27T11:09:47.489Z","level":"warn","event":"auth.token_invalid","status":400,"method":"GET","path":"/api/v1/user/admin/me","ip":"::1","reason":"Json Web Token is invalid, Try again!"}
+  | {"time":"2026-09-27T11:09:47.492Z","level":"warn","event":"auth.token_invalid","status":400,"method":"GET","path":"/api/v1/user/admin/me","ip":"::1","reason":"Json Web Token is invalid, Try again!"}
+  | {"time":"2026-09-27T11:09:47.840Z","level":"warn","event":"auth.login_failed","status":400,"method":"POST","path":"/api/v1/user/login","ip":"::1","account":"a***@test.local","reason":"Invalid email or password"}
+  | {"time":"2026-09-27T11:09:48.011Z","level":"warn","event":"auth.login_failed","status":400,"method":"POST","path":"/api/v1/user/login","ip":"::1","account":"a***@test.local","reason":"Invalid email or password"}
+  | {"time":"2026-09-27T11:09:48.215Z","level":"warn","event":"auth.login_failed","status":400,"method":"POST","path":"/api/v1/user/login","ip":"::1","account":"a***@test.local","reason":"Invalid email or password"}
+
+RESULT
+  doctor's plaintext password in the server console  : NO
+  anonymous visitor's email in the server console    : NO
+  lines logged for 6 failed security events          : 6
+  No secrets or personal data logged, and the failed attempts are recorded — this is the 'after' state.

@@ -14,7 +14,6 @@ export const addNewTestimonial = asyncHandler(async (req, res, next) => {
     if (!fullName || !email || !country || !state || !review) {
         throw new ApiError(400, "Please Fill Full Form!");
     }
-    console.log(req.body);
 
     // testimonialImage
     const testimonialImgLocalPath = req.file?.path;

@@ -15,7 +15,6 @@ export const addNewDoctor = asyncHandler(async (req, res, next) => {
     if (!firstName || !lastName || !email || !phone || !password || !address || !gender || !department || !specializations || !qualifications || !experience || !availabelSlots || !languagesKnown || !appointmentCharges) {
         throw new ApiError(400, "Please Fill Full Form!");
     }
-    console.log(req.body);
     // check if the doctor already exists
     let existedDoctor = await Doctor.findOne({ email });
     if (existedDoctor) {
