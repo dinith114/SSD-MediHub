@@ -1,0 +1,36 @@
+V-17 Known-vulnerable libraries pinned in the lockfile
+======================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T12:34:43.496Z
+branch   : fix/it22064936/v16-vulnerable-dependencies
+commit   : 4d1c400
+tool     : npm audit (npm 11.2.0) against the public registry — run by security-tests/capture-v17-v26.mjs
+target   : backend/package.json + backend/package-lock.json  (no server needed)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  Whether the committed package-lock.json pins library versions with published security
+  advisories. npm audit checks every pinned version against the GitHub Advisory Database.
+
+METHOD: white box — software composition analysis with npm audit
+
+$ cd backend && npm audit --registry=https://registry.npmjs.org/
+  0 vulnerabilities — critical 0 · high 0 · moderate 0 · low 0
+$ cd backend && npm audit --omit=dev --registry=https://registry.npmjs.org/   (production only)
+  0 vulnerabilities — critical 0 · high 0 · moderate 0 · low 0
+  Without --registry, a mirror that lacks the advisory API errors out — easy to misread as clean.
+
+PRODUCTION FINDINGS, WORST FIRST
+
+BLIND SPOT — packages with a pre-release version tag, which npm audit skips
+  none — every production package has a plain version number
+
+UNUSED ATTACK SURFACE
+  express-fileupload in package.json : NO    imported anywhere in backend/ : NO
+
+RESULT
+  production vulnerabilities, critical + high        : 0
+  advisories npm audit missed (pre-release tags)     : 0
+  unused express-fileupload still installed          : NO
+  No critical or high advisories left in production dependencies — this is the 'after' state.
