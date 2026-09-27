@@ -88,8 +88,11 @@ export const deleteAppointment = asyncHandler(async (req, res, next) => {
 // Controller function for getting all appointments
 export const getAllAppointments = asyncHandler(async (req, res, next) => {
 
-    // Find all appointments
-    const appointments = await Appointment.find();
+    // V-15 fix: return only the appointments that belong to the logged-in doctor.
+    // Appointment.find() with no filter returned every patient's appointment to
+    // any doctor (name, city, pincode, date, department — health data). Scope the
+    // query to req.doctor._id, the doctor the verified session belongs to.
+    const appointments = await Appointment.find({ doctor: req.doctor._id });
 
     res
         .status(200)

@@ -1,0 +1,38 @@
+V-15 Every doctor can read every patient's appointments
+=======================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T06:36:51.963Z
+branch   : fix/it22083500/v15-doctor-appointment-scope
+commit   : 8021c83
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: after-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  getAllAppointments() runs Appointment.find() with no filter. Any doctor receives
+  every appointment in the system, including patients they have never treated.
+
+METHOD: black box — log in as a doctor unrelated to the seeded appointment
+  caller      : alpha (Doctor, id 6ab8b97fa1259e1204802665)
+  appointment : 6ab8b980a1259e1204802862  — patient Alice, booked with Dr Beta (id 6ab8b980a1259e1204802668)
+
+ATTACK — Dr Alpha, unrelated to the appointment, lists every appointment
+> fetch GET $BASE/api/v1/appointment/getall [with alpha's session cookie]
+  HTTP 200
+  {"statusCode":200,"data":[],"message":"All Appointments List"}
+  RESULT: ✅ no other doctor's appointments returned (HTTP 200) — scoped to the caller
+
+CONTROL — a patient (Dana) tries the same route (the role guard that DOES exist)
+> fetch GET $BASE/api/v1/appointment/getall [with dana's session cookie]
+  HTTP 401
+  {"success":false,"message":"Unauthorized - No token provided"}
+  RESULT: ✅ patient blocked (HTTP 401) — the role check works; the MISSING check is per-doctor ownership
+
+WHITE BOX
+  backend/src/controllers/appointment.controller.js:92:  // Appointment.find() with no filter returned every patient's appointment to
+  backend/src/controllers/appointment.controller.js:95:  const appointments = await Appointment.find({ doctor: req.doctor._id });
+
+  A patient's name, location and medical department (Oncology) is health data.
+  Compare the original README's claim of "safeguarding sensitive patient data".

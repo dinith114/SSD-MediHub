@@ -1,0 +1,53 @@
+V-15 Every doctor can read every patient's appointments
+=======================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T06:37:55Z
+branch   : fix/it22083500/v15-doctor-appointment-scope
+commit   : 8021c83
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab8b9bcb3317dfb9e910333
+  CAROL=patientToken=<carol's JWT>  CAROL_ID=6ab8b9bcb3317dfb9e910331
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab8b9bcb3317dfb9e91032f
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab8b9bcb3317dfb9e910337   (Dr Beta's id: 6ab8b9bcb3317dfb9e91033a)
+  MED1=6ab8b9bcb3317dfb9e91033d  MED_NEG=e66ade4901ce760d6d7539dd  MED2=c07b0b465f36d89c11eaef9a  MED4=19eca67e3c7f6b6948a7ec91
+  CART_ID=6ab8b9bcb3317dfb9e910532  APPT_ID=6ab8b9bcb3317dfb9e910534
+
+------------------------------------------------------------------------------
+ATTACK — Dr Alpha asks for the appointment list. The only seeded appointment is Alice's, with Dr Beta.
+$ curl -s -i "$BASE/api/v1/appointment/getall" -H "Cookie: $ALPHA"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 62
+ETag: W/"3e-GNh5RfoCqt6YANVRsYsLG3aLC4Y"
+Date: Sun, 27 Sep 2026 06:37:55 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[],"message":"All Appointments List"}
+
+Dr Alpha is not the doctor on this appointment, yet receives the patient's name, city,
+pincode, date and department.
+
+CONTROL — a patient (Dana) tries the same route (the role guard that DOES exist)
+$ curl -s -i "$BASE/api/v1/appointment/getall" -H "Cookie: $DANA"
+HTTP/1.1 401 Unauthorized
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 62
+ETag: W/"3e-lVli7P0KJmPDEiX1D5TNtDr7oj0"
+Date: Sun, 27 Sep 2026 06:37:55 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"message":"Unauthorized - No token provided"}
+
+The patient is blocked, so the missing check is per-doctor ownership, not the role.
