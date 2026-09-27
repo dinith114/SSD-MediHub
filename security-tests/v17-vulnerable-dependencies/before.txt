@@ -1,0 +1,117 @@
+V-17 Known-vulnerable libraries pinned in the lockfile
+======================================================
+
+state    : BEFORE the fix
+captured : 2026-09-27T06:20:07.567Z
+branch   : test/it22064936/v17-v19-v25-v26-before-evidence
+commit   : edd15f5
+tool     : npm audit (npm 11.2.0) against the public registry — run by security-tests/capture-v17-v26.mjs
+target   : backend/package.json + backend/package-lock.json  (no server needed)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  Whether the committed package-lock.json pins library versions with published security
+  advisories. npm audit checks every pinned version against the GitHub Advisory Database.
+
+METHOD: white box — software composition analysis with npm audit
+
+$ cd backend && npm audit --registry=https://registry.npmjs.org/
+  23 vulnerabilities — critical 3 · high 15 · moderate 1 · low 4
+$ cd backend && npm audit --omit=dev --registry=https://registry.npmjs.org/   (production only)
+  21 vulnerabilities — critical 3 · high 13 · moderate 1 · low 4
+  Without --registry, a mirror that lacks the advisory API errors out — easy to misread as clean.
+
+PRODUCTION FINDINGS, WORST FIRST
+
+  CRITICAL  form-data 4.0.0  (transitive dependency)
+            form-data uses unsafe random function in form-data for choosing boundary
+            https://github.com/advisories/GHSA-fjxv-7rqg-78g4   (+1 more advisories)
+
+  CRITICAL  mongoose 8.3.4  (direct dependency)
+            Mongoose search injection vulnerability
+            https://github.com/advisories/GHSA-m7xq-9374-9rvx   (+3 more advisories)
+
+  CRITICAL  tar 6.2.1  (transitive dependency)
+            node-tar Vulnerable to Arbitrary File Creation/Overwrite via Hardlink Path Traversal
+            https://github.com/advisories/GHSA-34x7-hfp2-rc4v   (+11 more advisories)
+            fix needs a breaking upgrade: bcrypt@6.0.0
+
+  HIGH      @mapbox/node-pre-gyp 1.0.11  (transitive dependency)
+            vulnerable through tar
+            fix needs a breaking upgrade: bcrypt@6.0.0
+
+  HIGH      axios 1.7.2  (direct dependency)
+            Server-Side Request Forgery in axios
+            https://github.com/advisories/GHSA-8hc4-vh64-cxmj   (+30 more advisories)
+
+  HIGH      bcrypt 5.1.1  (direct dependency)
+            vulnerable through @mapbox/node-pre-gyp
+            fix needs a breaking upgrade: bcrypt@6.0.0
+
+  HIGH      body-parser 1.20.2  (transitive dependency)
+            body-parser vulnerable to denial of service when url encoding is enabled
+            https://github.com/advisories/GHSA-qwcr-r2fm-qrc7   (+1 more advisories)
+
+  HIGH      brace-expansion 1.1.11  (transitive dependency)
+            brace-expansion Regular Expression Denial of Service vulnerability
+            https://github.com/advisories/GHSA-v6h2-p8h4-qcjw   (+4 more advisories)
+
+  HIGH      cloudinary 2.2.0  (direct dependency)
+            Cloudinary Node SDK is vulnerable to Arbitrary Argument Injection through parameters that include an ampersand
+            https://github.com/advisories/GHSA-g4mf-96x5-5m2c
+
+  HIGH      express 4.19.2  (direct dependency)
+            express vulnerable to XSS via response.redirect()
+            https://github.com/advisories/GHSA-qw6h-vgh9-j6wx
+
+  HIGH      jws 3.2.2  (transitive dependency)
+            auth0/node-jws Improperly Verifies HMAC Signature
+            https://github.com/advisories/GHSA-869p-cjfg-cm3x
+
+  HIGH      lodash 4.17.21  (transitive dependency)
+            lodash vulnerable to Code Injection via `_.template` imports key names
+            https://github.com/advisories/GHSA-r5fr-rjxr-66jc   (+2 more advisories)
+
+  HIGH      minimatch 3.1.2  (transitive dependency)
+            minimatch has a ReDoS via repeated wildcards with non-matching literal in pattern
+            https://github.com/advisories/GHSA-3ppc-4f35-3m26   (+2 more advisories)
+
+  HIGH      nodemailer 6.9.13  (direct dependency)
+            Nodemailer: Email to an unintended domain can occur due to Interpretation Conflict
+            https://github.com/advisories/GHSA-mm7p-fcc7-pg87   (+10 more advisories)
+            fix needs a breaking upgrade: nodemailer@10.0.10
+
+  HIGH      path-to-regexp 0.1.7  (transitive dependency)
+            path-to-regexp outputs backtracking regular expressions
+            https://github.com/advisories/GHSA-9wv6-86v2-598j   (+2 more advisories)
+
+  HIGH      validator 13.12.0  (direct dependency)
+            validator.js has a URL validation bypass vulnerability in its isURL function
+            https://github.com/advisories/GHSA-9965-vmph-33xx   (+1 more advisories)
+
+  MODERATE  qs 6.11.0  (transitive dependency)
+            qs's arrayLimit bypass in comma parsing allows denial of service
+            https://github.com/advisories/GHSA-w7fw-mjwx-w883   (+2 more advisories)
+
+  LOW       cookie 0.6.0  (transitive dependency)
+            cookie accepts cookie name, path, and domain with out of bounds characters
+            https://github.com/advisories/GHSA-pxg6-pf52-xh8x
+
+  LOW       cookie-parser 1.4.6  (direct dependency)
+            vulnerable through cookie
+
+  LOW       send 0.18.0  (transitive dependency)
+            send vulnerable to template injection that can lead to XSS
+            https://github.com/advisories/GHSA-m6fv-jmcg-4jfg
+
+  LOW       serve-static 1.15.0  (transitive dependency)
+            serve-static vulnerable to template injection that can lead to XSS
+            https://github.com/advisories/GHSA-cm22-4g7w-348p
+
+UNUSED ATTACK SURFACE
+  express-fileupload in package.json : YES    imported anywhere in backend/ : NO
+
+RESULT
+  production vulnerabilities, critical + high        : 16
+  unused express-fileupload still installed          : YES
+  VULNERABLE — known-vulnerable libraries ship with the app.
