@@ -2,10 +2,10 @@ V-18 The API sends no security headers
 ======================================
 
 state    : AFTER the fix
-captured : 2026-09-27T10:26:59.805Z
-branch   : fix/it22064936/v18-no-security-headers
-commit   : db55ce1
-tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+captured : 2026-09-27T15:55:32.958Z
+branch   : fix/it22064936/v16-vulnerable-dependencies
+commit   : 65c1d3b
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v16-v20.mjs
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
 
 ------------------------------------------------------------------------------
@@ -28,8 +28,8 @@ THE SOURCE
   content-type: application/json; charset=utf-8
   cross-origin-opener-policy: same-origin
   cross-origin-resource-policy: same-origin
-  date: Sun, 27 Sep 2026 10:27:14 GMT
-  etag: W/"5dc-PcAEIW8YxCzgTRdmujgCOrWNa3Y"
+  date: Sun, 27 Sep 2026 15:55:49 GMT
+  etag: W/"5dc-zeO8lFmMvbeEzo3kigiD8GKvHDU"
   keep-alive: timeout=5
   origin-agent-cluster: ?1
   referrer-policy: no-referrer
@@ -61,8 +61,8 @@ THE SOURCE
   content-type: application/json; charset=utf-8
   cross-origin-opener-policy: same-origin
   cross-origin-resource-policy: same-origin
-  date: Sun, 27 Sep 2026 10:27:14 GMT
-  etag: W/"17c-KthHSlT/l/W9CTM4l+f4katvdDQ"
+  date: Sun, 27 Sep 2026 15:55:49 GMT
+  etag: W/"17c-rSrBcxUrdYODDwqO0wiyABCeOUE"
   keep-alive: timeout=5
   origin-agent-cluster: ?1
   referrer-policy: no-referrer

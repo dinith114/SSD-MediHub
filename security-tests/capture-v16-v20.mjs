@@ -1,11 +1,11 @@
-// Evidence capture for V-17, V-18, V-19, V-25 and V-26 (Jayangi, IT22064936).
+// Evidence capture for V-16 - V-20 (Jayangi, IT22064936).
 //
-//     node security-tests/capture-v17-v26.mjs            -> writes before.txt in each folder
-//     node security-tests/capture-v17-v26.mjs --after    -> writes after.txt in each folder
+//     node security-tests/capture-v16-v20.mjs            -> writes before.txt in each folder
+//     node security-tests/capture-v16-v20.mjs --after    -> writes after.txt in each folder
 //
 // Unlike the other capture scripts, this one starts the disposable test server itself
-// (backend/scripts/dev-server.js), a fresh copy per finding: V-25 needs the server's own
-// console output, and after the fix V-18's 30 logins must not trip a limiter in the next
+// (backend/scripts/dev-server.js), a fresh copy per finding: V-19 needs the server's own
+// console output, and after the fix V-17's 30 logins must not trip a limiter in the next
 // test. So stop `npm run dev:test` first — port 4000 must be free.
 //
 // Login needs reCAPTCHA, so the server gets Google's public *test* secret, which always
@@ -120,7 +120,7 @@ async function consoleDuring(action) {
     return { result, printed: server.output.slice(mark).trim() };
 }
 
-// --- V-17 · vulnerable dependencies (no server needed) -----------------------
+// --- V-16 · vulnerable dependencies (no server needed) -----------------------
 
 const npm = (...args) =>
     spawnSync("npm", args, { cwd: backend, shell: true, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout; // npm.cmd on Windows
@@ -128,8 +128,8 @@ const audit = (...extra) => JSON.parse(npm("audit", "--json", "--registry=https:
 const counts = ({ total, critical, high, moderate, low }) =>
     `  ${total} vulnerabilities — critical ${critical} · high ${high} · moderate ${moderate} · low ${low}`;
 
-async function v17() {
-    console.log("  V-17  running npm audit twice — can take a few minutes …");
+async function v16() {
+    console.log("  V-16  running npm audit twice — can take a few minutes …");
     const lock = JSON.parse(await fs.readFile(path.join(backend, "package-lock.json"), "utf8"));
     const full = audit();
     const prod = audit("--omit=dev");
@@ -160,7 +160,7 @@ async function v17() {
         if (fix?.isSemVerMajor) lines.push(`            fix needs a breaking upgrade: ${fix.name}@${fix.version}`);
     }
 
-    //v17- npm audit skips versions with a pre-release tag such as 1.4.5-lts.1: by semver's default
+    //v16- npm audit skips versions with a pre-release tag such as 1.4.5-lts.1: by semver's default
     // rule a tagged version never matches a plain range like "<2.0.0". The registry's bulk lookup
     // has the same blind spot, so also ask about the plain number, then match with includePrerelease.
     const semver = createRequire(path.join(backend, "package.json"))("semver");
@@ -204,15 +204,15 @@ async function v17() {
         ),
     );
     return {
-        folder: "v17-vulnerable-dependencies",
-        title: "V-17 Known-vulnerable libraries pinned in the lockfile",
-        tool: `npm audit (npm ${npm("--version").trim()}) against the public registry — run by security-tests/capture-v17-v26.mjs`,
+        folder: "v16-vulnerable-dependencies",
+        title: "V-16 Known-vulnerable libraries pinned in the lockfile",
+        tool: `npm audit (npm ${npm("--version").trim()}) against the public registry — run by security-tests/capture-v16-v20.mjs`,
         target: "backend/package.json + backend/package-lock.json  (no server needed)",
         lines,
     };
 }
 
-// --- V-19 · no security headers ------------------------------------------------
+// --- V-18 · no security headers ------------------------------------------------
 
 const SECURITY_HEADERS = {
     "content-security-policy": "limits where scripts, frames and data may load from",
@@ -224,7 +224,7 @@ const SECURITY_HEADERS = {
     "cross-origin-resource-policy": "stops other sites embedding these responses",
 };
 
-async function v19() {
+async function v18() {
     const { accounts: acc } = await startServer();
     const lines = [
         "WHAT THIS CHECKS",
@@ -277,12 +277,12 @@ async function v19() {
         "  An OWASP ZAP passive scan reports the same missing headers; capture it separately.",
         "  These are API responses. The React pages are served by Vite, so they need their own check.",
     );
-    return { folder: "v19-no-security-headers", title: "V-19 The API sends no security headers", lines };
+    return { folder: "v18-no-security-headers", title: "V-18 The API sends no security headers", lines };
 }
 
-// --- V-26 · account and role enumeration --------------------------------------
+// --- V-20 · account and role enumeration --------------------------------------
 
-async function v26() {
+async function v20() {
     const { accounts: acc } = await startServer();
     const register = (email) => call("POST", "/api/v1/user/patient/register", { json: newPatient(email) });
     const login = (email) => call("POST", "/api/v1/user/login", { json: loginBody(email, "Wrong-Pass-1", "Patient") });
@@ -338,12 +338,12 @@ async function v26() {
         "  code ran. The registration half works on the original code. Login uses Google's public",
         "  reCAPTCHA test secret, which always passes, so the password check is what is tested.",
     );
-    return { folder: "v26-account-enumeration", title: "V-26 Sign-up and login reveal which accounts exist, and their role", lines };
+    return { folder: "v20-account-enumeration", title: "V-20 Sign-up and login reveal which accounts exist, and their role", lines };
 }
 
-// --- V-25 · passwords in the log, no security event logging -------------------
+// --- V-19 · passwords in the log, no security event logging -------------------
 
-async function v25() {
+async function v19() {
     const { accounts: acc } = await startServer();
     const doctorPassword = "Evidence-Doc-Pass-2026!";
     const visitorEmail = `visitor-${Date.now()}@example.test`;
@@ -426,12 +426,12 @@ async function v25() {
             "No secrets or personal data logged, and the failed attempts are recorded",
         ),
     ];
-    return { folder: "v25-passwords-in-logs", title: "V-25 Passwords written to the server log, no security event logging", lines };
+    return { folder: "v19-passwords-in-logs", title: "V-19 Passwords written to the server log, no security event logging", lines };
 }
 
-// --- V-18 · no brute-force protection -----------------------------------------
+// --- V-17 · no brute-force protection -----------------------------------------
 
-async function v18() {
+async function v17() {
     const { accounts: acc, password } = await startServer();
     const post = async (route, json) => call("POST", route, { json });
     const tally = (codes) => [...new Set(codes)].map((c) => `HTTP ${c} x ${count(codes, c)}`).join(", ");
@@ -494,7 +494,7 @@ async function v18() {
         "  to login or registration. Login uses Google's public reCAPTCHA test secret, which",
         "  always passes; a real CAPTCHA adds friction but is not a rate limit.",
     ];
-    return { folder: "v18-no-rate-limiting", title: "V-18 No limit on password guessing or sign-ups", lines };
+    return { folder: "v17-no-rate-limiting", title: "V-17 No limit on password guessing or sign-ups", lines };
 }
 
 // --- run everything and write the files ---------------------------------------
@@ -502,9 +502,9 @@ async function v18() {
 const branch = git("rev-parse", "--abbrev-ref", "HEAD");
 const commit = git("rev-parse", "--short", "HEAD");
 const stamp = new Date().toISOString();
-console.log(`\n  Capturing ${mode}.txt for V-17, V-18, V-19, V-25, V-26  (branch ${branch}, commit ${commit})\n`);
+console.log(`\n  Capturing ${mode}.txt for V-16, V-17, V-18, V-19, V-20  (branch ${branch}, commit ${commit})\n`);
 
-for (const step of [v17, v19, v26, v25, v18]) {
+for (const step of [v16, v18, v20, v19, v17]) {
     const r = await step();
     const header = [
         r.title,
@@ -514,7 +514,7 @@ for (const step of [v17, v19, v26, v25, v18]) {
         `captured : ${stamp}`,
         `branch   : ${branch}`,
         `commit   : ${commit}`,
-        `tool     : ${r.tool ?? `Node.js ${process.version} fetch() — requests sent by security-tests/capture-v17-v26.mjs`}`,
+        `tool     : ${r.tool ?? `Node.js ${process.version} fetch() — requests sent by security-tests/capture-v16-v20.mjs`}`,
         `target   : ${r.target ?? `${BASE}  (disposable in-memory database, localhost only)`}`,
         "",
         "-".repeat(78),

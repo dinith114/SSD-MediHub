@@ -1,4 +1,4 @@
-V-25 Passwords written to the server log, no security event logging
+V-19 Passwords written to the server log, no security event logging
 ===================================================================
 
 state    : BEFORE the fix
