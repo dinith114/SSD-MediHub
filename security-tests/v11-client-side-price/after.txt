@@ -2,9 +2,9 @@ V-11 The client decides the price and the server stores it
 ==========================================================
 
 state    : AFTER the fix
-captured : 2026-09-27T07:29:00.820Z
-branch   : fix/it22083500/v11-server-side-pricing
-commit   : ea56022
+captured : 2026-09-27T07:52:48.189Z
+branch   : test/it22083500/test-after
+commit   : b1a6d60
 tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
            (the same attacks with the real curl binary: after-curl.txt in this folder)
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
@@ -15,33 +15,32 @@ WHAT THIS PROVES
   saved as-is — a total of 1 for 99 items, or even a negative total.
 
 METHOD: black box (request tampering, sent by this Node script) + white box (read the source)
-  attacker : dana (Patient, id 6ab8c5b82e2535604065d985)
+  attacker : dana (Patient, id 6ab8cb29769685a8c5656985)
 
 STEP 1 — the real price, from the server's own catalogue
-> fetch GET $BASE/api/v1/medicines/get/6ab8c5b92e2535604065d98f
-  "Testomycin 001"  price 101  discount 1  (id 6ab8c5b92e2535604065d98f)
+> fetch GET $BASE/api/v1/medicines/get/6ab8cb29769685a8c565698f
+  "Testomycin 001"  price 101  discount 1  (id 6ab8cb29769685a8c565698f)
   99 x (101 - 1) = 9900   <-- what the total should be
 
 ATTACK 1 — send a total of 1 instead of 9900
 > fetch POST $BASE/api/v1/medicines-cart/add-to-cart [with dana's session cookie]
-  body: {"userId":"6ab8c5b82e2535604065d985","medicineId":"6ab8c5b92e2535604065d98f","quantity":99,"totalPrice":1,"status":"Pending"}
+  body: {"userId":"6ab8cb29769685a8c5656985","medicineId":"6ab8cb29769685a8c565698f","quantity":99,"totalPrice":1,"status":"Pending"}
   HTTP 201
-  {"statusCode":201,"data":{"userId":"6ab8c5b82e2535604065d985","medicineId":"6ab8c5b92e2535604065d98f","quantity":99,"totalPrice":9900,"status":"Pending","_id":"6ab8c5bc2e2535604065db8b","createdAt":"2026-09-27T07:29:00.727Z","updatedAt":"2026-09-27T07:29:00.727Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+  {"statusCode":201,"data":{"userId":"6ab8cb29769685a8c5656985","medicineId":"6ab8cb29769685a8c565698f","quantity":99,"totalPrice":9900,"status":"Pending","_id":"6ab8cb50769685a8c5656b8c","createdAt":"2026-09-27T07:52:48.105Z","updatedAt":"2026-09-27T07:52:48.105Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
   RESULT: ✅ server recalculated to 9900 (honest total 9900) — price not client-controlled
 
 ATTACK 2 — send a NEGATIVE total (-500)
 > fetch POST $BASE/api/v1/medicines-cart/add-to-cart [with dana's session cookie]
-  body: {"userId":"6ab8c5b82e2535604065d985","medicineId":"169f0c490aed6dc5ee61a456","quantity":2,"totalPrice":-500,"status":"Pending"}
+  body: {"userId":"6ab8cb29769685a8c5656985","medicineId":"1b1f72d7cf13b1f1d5a82d2c","quantity":2,"totalPrice":-500,"status":"Pending"}
   HTTP 404
   {"success":false,"message":"Medicine not found"}
   RESULT: nothing stored (HTTP 404) — the negative price was refused
 
 WHITE BOX — where the cart total comes from
-  backend/src/controllers/UserCart.controller.js:9:  // V-11 fix: the client no longer sends the price. totalPrice from the body is
-  backend/src/controllers/UserCart.controller.js:24:  const medicine = await Medicine.findById(medicineId);
-  backend/src/controllers/UserCart.controller.js:28:  const unitPrice = Math.max(0, medicine.price - (medicine.discount || 0));
-  backend/src/controllers/UserCart.controller.js:29:  const totalPrice = unitPrice * quantity;
-  backend/src/controllers/UserCart.controller.js:41:  totalPrice,
+  backend/src/controllers/UserCart.controller.js:22:  const medicine = await Medicine.findById(medicineId);
+  backend/src/controllers/UserCart.controller.js:26:  const unitPrice = Math.max(0, medicine.price - (medicine.discount || 0));
+  backend/src/controllers/UserCart.controller.js:27:  const totalPrice = unitPrice * quantity;
+  backend/src/controllers/UserCart.controller.js:39:  totalPrice,
 
   Before the fix the stored totalPrice was taken straight from req.body.
   After the fix the server looks the Medicine up and computes the total itself,

@@ -9,9 +9,9 @@ export const ToggleCart = asyncHandler(async (req, res) => {
     // V-13 fix: the owner is the logged-in patient, never a userId from the
     // request body. Trusting the body let one patient add to another's cart.
     const userId = req.user._id;
-    const { medicineId, quantity, totalPrice, status } = req.body;
+    const { medicineId, quantity, status } = req.body;
 
-    if (!medicineId || !quantity || !totalPrice) {
+    if (!medicineId || !quantity) {
         throw new ApiError(400, "Please Fill Full Form!");
     }
     if (!Number.isInteger(quantity) || quantity < 1) {

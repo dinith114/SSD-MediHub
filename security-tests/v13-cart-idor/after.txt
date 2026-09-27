@@ -2,9 +2,9 @@ V-13 IDOR: one patient can read another patient's cart
 ======================================================
 
 state    : AFTER the fix
-captured : 2026-09-27T06:27:23.378Z
-branch   : fix/it22083500/v13-cart-idor
-commit   : 34bc5fa
+captured : 2026-09-27T07:52:48.189Z
+branch   : test/it22083500/test-after
+commit   : b1a6d60
 tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
            (the same attacks with the real curl binary: after-curl.txt in this folder)
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
@@ -15,21 +15,21 @@ WHAT THIS PROVES
   user ID comes from the URL, so any logged-in patient can read anyone's cart.
 
 METHOD: black box — two different attackers, swap the victim's ID into the URL
-  victim    : bobby (Patient, id 6ab8b7461927fd1c46e0494f)  (seed puts one private row in his cart)
+  victim    : bobby (Patient, id 6ab8cb29769685a8c5656981)  (seed puts one private row in his cart)
 
 CONTROL — Dana reads her own cart (this must always work)
-> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8b7461927fd1c46e04953 [with dana's session cookie]
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8cb29769685a8c5656985 [with dana's session cookie]
   HTTP 200
-  {"statusCode":200,"data":[{"_id":"6ab8b74b1927fd1c46e04b59","userId":"6ab8b7461927fd1c46e04953","medicineId":"6ab8b7471927fd1c46e0495d","quantity":99,"totalPrice":1,"status":"Pending","createdAt":"2026-09-27T06:27:23.281Z","updatedAt":"2026-09-27T06:27:23.281Z","__v":0},{"_id":"6ab8b74b1927fd1c46e04b5d","userId":"6ab8b7461927fd1c46e04953","medicineId":"2127db7d759e1076c72d40cd","quantity":2,"totalPrice":-500,"status":"Pending","createdAt":"2026-09-27T06:27:23.292Z","updatedAt":"2026-09-27T06:27:23.292Z","__v":0}],"message":"Cart Fetched Successfully!"}
+  {"statusCode":200,"data":[{"_id":"6ab8cb50769685a8c5656b8c","userId":"6ab8cb29769685a8c5656985","medicineId":"6ab8cb29769685a8c565698f","quantity":99,"totalPrice":9900,"status":"Pending","createdAt":"2026-09-27T07:52:48.105Z","updatedAt":"2026-09-27T07:52:48.105Z","__v":0}],"message":"Cart Fetched Successfully!"}
 
-ATTACK 1 — dana (Patient, id 6ab8b7461927fd1c46e04953) asks for Bobby's cart, with her own cookie
-> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8b7461927fd1c46e0494f [with dana's session cookie]
+ATTACK 1 — dana (Patient, id 6ab8cb29769685a8c5656985) asks for Bobby's cart, with her own cookie
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8cb29769685a8c5656981 [with dana's session cookie]
   HTTP 200
-  {"statusCode":200,"data":[{"_id":"6ab8b74b1927fd1c46e04b59","userId":"6ab8b7461927fd1c46e04953","medicineId":"6ab8b7471927fd1c46e0495d","quantity":99,"totalPrice":1,"status":"Pending","createdAt":"2026-09-27T06:27:23.281Z","updatedAt":"2026-09-27T06:27:23.281Z","__v":0},{"_id":"6ab8b74b1927fd1c46e04b5d","userId":"6ab8b7461927fd1c46e04953","medicineId":"2127db7d759e1076c72d40cd","quantity":2,"totalPrice":-500,"status":"Pending","createdAt":"2026-09-27T06:27:23.292Z","updatedAt":"2026-09-27T06:27:23.292Z","__v":0}],"message":"Cart Fetched Successfully!"}
+  {"statusCode":200,"data":[{"_id":"6ab8cb50769685a8c5656b8c","userId":"6ab8cb29769685a8c5656985","medicineId":"6ab8cb29769685a8c565698f","quantity":99,"totalPrice":9900,"status":"Pending","createdAt":"2026-09-27T07:52:48.105Z","updatedAt":"2026-09-27T07:52:48.105Z","__v":0}],"message":"Cart Fetched Successfully!"}
   RESULT: ✅ no rows of Bobby's returned (HTTP 200) — Dana got only her own cart, access to Bobby's refused
 
-ATTACK 2 — a second, unrelated patient carol (Patient, id 6ab8b7461927fd1c46e04951) does the same
-> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8b7461927fd1c46e0494f [with carol's session cookie]
+ATTACK 2 — a second, unrelated patient carol (Patient, id 6ab8cb29769685a8c5656983) does the same
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8cb29769685a8c5656981 [with carol's session cookie]
   HTTP 200
   {"statusCode":200,"data":[],"message":"Cart Fetched Successfully!"}
   RESULT: ✅ Carol received none of Bobby's rows (HTTP 200) — access refused
