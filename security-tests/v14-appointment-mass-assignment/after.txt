@@ -2,9 +2,9 @@ V-14 Any doctor can rewrite any field of any appointment
 ========================================================
 
 state    : AFTER the fix
-captured : 2026-09-27T06:54:29.119Z
-branch   : fix/it22083500/v14-appointment-mass-assignment
-commit   : e43ab72
+captured : 2026-09-27T07:52:48.189Z
+branch   : test/it22083500/test-after
+commit   : b1a6d60
 tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
            (the same attacks with the real curl binary: after-curl.txt in this folder)
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
@@ -16,27 +16,27 @@ WHAT THIS PROVES
   belongs to the doctor making the request — so a doctor can even reassign it.
 
 METHOD: black box — a doctor edits another doctor's appointment, adding extra fields
-  caller      : alpha (Doctor, id 6ab8bda06c302a5700392ed8)
-  appointment : 6ab8bda06c302a57003930d5  — patient Alice, booked with Dr Beta (id 6ab8bda06c302a5700392edb)
+  caller      : alpha (Doctor, id 6ab8cb29769685a8c5656989)
+  appointment : 6ab8cb29769685a8c5656b86  — patient Alice, booked with Dr Beta (id 6ab8cb29769685a8c565698c)
   seeded values: patientFirstName "Alice", appointmentCharges "3000", city "Kandy",
                  department "Oncology", status "Pending", doctor = Dr Beta
 
 ATTACK 1 — send fields other than status (mass assignment)
-> fetch PUT $BASE/api/v1/appointment/update/6ab8bda06c302a57003930d5 [with alpha's session cookie]
+> fetch PUT $BASE/api/v1/appointment/update/6ab8cb29769685a8c5656b86 [with alpha's session cookie]
   body: {"status":"Accepted","appointmentCharges":"1","city":"HACKED","department":"HACKED-DEPT","patientFirstName":"Overwritten"}
   HTTP 404
   {"success":false,"message":"Appointment not found"}
   RESULT: ✅ update refused (HTTP 404) — a doctor cannot edit another doctor's appointment
 
 ATTACK 2 — reassign the owner: set doctor = Dr Alpha, stealing Dr Beta's appointment
-> fetch PUT $BASE/api/v1/appointment/update/6ab8bda06c302a57003930d5 [with alpha's session cookie]
-  body: {"doctor":"6ab8bda06c302a5700392ed8"}
+> fetch PUT $BASE/api/v1/appointment/update/6ab8cb29769685a8c5656b86 [with alpha's session cookie]
+  body: {"doctor":"6ab8cb29769685a8c5656989"}
   HTTP 400
   {"success":false,"message":"status must be one of: Pending, Accepted, Rejected"}
   RESULT: ✅ owner not reassigned (HTTP 400) — the doctor field is ignored and a foreign doctor is refused
 
 CONTROL — a patient (Dana) tries to update the appointment (role guard that exists)
-> fetch PUT $BASE/api/v1/appointment/update/6ab8bda06c302a57003930d5 [with dana's session cookie]
+> fetch PUT $BASE/api/v1/appointment/update/6ab8cb29769685a8c5656b86 [with dana's session cookie]
   HTTP 401
   {"success":false,"message":"Unauthorized - No token provided"}
   RESULT: ✅ patient blocked (HTTP 401) — the role check works; the MISSING checks are field-scoping and ownership
