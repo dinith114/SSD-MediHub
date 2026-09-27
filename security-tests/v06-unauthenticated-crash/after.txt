@@ -1,0 +1,31 @@
+V-06 One unauthenticated request crashes the whole backend — AFTER FIX
+======================================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T03:01:10Z
+branch   : fix/it22065230/v06-payment-crash
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THE FIX DID
+  1. Wrapped checkout() and paymentVerification() in asyncHandler, like every
+     other controller. A rejected promise is now forwarded to the global error
+     handler instead of becoming an unhandled rejection that kills the process.
+  2. checkout() now guards the undefined Razorpay client (typeof instance ===
+     "undefined") and returns a clean 503 instead of throwing a raw ReferenceError.
+  3. index.js: added process-level 'unhandledRejection' and 'uncaughtException'
+     handlers (defence in depth) so no future unwrapped async error can terminate
+     the process. (Active on the production entry point; the primary fix — the
+     asyncHandler wrapper — protects dev:test as well, proven below.)
+
+METHOD: black box — health check, the crash request, health check (same as before.txt)
+
+  1. GET  /api/v1/user/alldoctors        -> HTTP 200   (server alive)
+  2. POST /api/v1/payment/checkout {}     -> HTTP 503   {"success":false,"message":"Payment service is not configured"}
+  3. GET  /api/v1/user/alldoctors        -> HTTP 200   (server STILL alive)
+
+RESULT
+  Before: step 2 dropped the connection (ECONNRESET) and step 3 returned nothing
+          — the Node process had exited (see before.txt).
+  After:  step 2 returns a clean 503 and step 3 still returns 200. The server
+          survives the exact request that used to crash it. Denial of service closed.
