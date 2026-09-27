@@ -52,9 +52,16 @@ export const errorHandler = (err, req, res, next) => {
             .join(" ")
         : err.message;
 
-    return res.status(err.statusCode).json({
+    // V-04 fix (defence in depth): coerce an invalid status code to 500 so a
+    // mis-called ApiError can never make res.status() throw and fall through to
+    // Express's default handler, which would leak a full stack trace to the client.
+    let statusCode = Number(err.statusCode);
+    if (!Number.isInteger(statusCode) || statusCode < 100 || statusCode > 599) {
+        statusCode = 500;
+    }
+
+    return res.status(statusCode).json({
         success: false,
-        // message: err.message,
         message: errorMessage,
     });
 };
