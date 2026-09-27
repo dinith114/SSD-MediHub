@@ -206,16 +206,16 @@ async function v13() {
             `ATTACK 1 — ${who("dana")} asks for Bobby's cart, with her own cookie`,
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("dana")}`,
             ...show(danaSeesBobby),
-            danaRows.length
-                ? verdict(true, `${danaRows.length} of Bobby's row(s) returned to Dana — quantity ${danaRows[0].quantity}, totalPrice ${danaRows[0].totalPrice}, status ${danaRows[0].status}`)
-                : verdict(false, `no rows of Bobby's returned (HTTP ${danaSeesBobby.status}) — access refused`),
+            verdict(danaRows.length > 0,
+                `${danaRows.length} of Bobby's row(s) returned to Dana — quantity ${danaRows[0]?.quantity}, totalPrice ${danaRows[0]?.totalPrice}, status ${danaRows[0]?.status}`,
+                `no rows of Bobby's returned (HTTP ${danaSeesBobby.status}) — Dana got only her own cart, access to Bobby's refused`),
             "",
             `ATTACK 2 — a second, unrelated patient ${who("carol")} does the same`,
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("carol")}`,
             ...show(carolSeesBobby),
-            carolRows.length
-                ? verdict(true, `Carol also received ${carolRows.length} of Bobby's row(s) — any patient can read any cart`)
-                : verdict(false, `Carol was refused (HTTP ${carolSeesBobby.status})`),
+            verdict(carolRows.length > 0,
+                `Carol also received ${carolRows.length} of Bobby's row(s) — any patient can read any cart`,
+                `Carol received none of Bobby's rows (HTTP ${carolSeesBobby.status}) — access refused`),
             "",
             "WHITE BOX — the ID the query trusts",
             ...(await grepSource("backend/src/controllers/UserCart.controller.js", /req\.params\.userId|const \{ userId/)),
@@ -323,12 +323,11 @@ async function v15() {
             "ATTACK — Dr Alpha, unrelated to the appointment, lists every appointment",
             `> fetch GET $BASE/api/v1/appointment/getall ${ck("alpha")}`,
             ...show(res),
-            a
-                ? verdict(true,
-                    `${foreign.length} appointment(s) belonging to other doctors returned to Dr Alpha.\n` +
-                    `          Exposed: patient "${a.patientFirstName} ${a.patientLastName}", city ${a.city}, pincode ${a.pincode},\n` +
-                    `          date ${a.appointmentDate}, department "${a.department}".`)
-                : verdict(false, `no other doctor's appointments returned (HTTP ${res.status}) — scoped correctly`),
+            verdict(!!a,
+                `${foreign.length} appointment(s) belonging to other doctors returned to Dr Alpha.\n` +
+                `          Exposed: patient "${a?.patientFirstName} ${a?.patientLastName}", city ${a?.city}, pincode ${a?.pincode},\n` +
+                `          date ${a?.appointmentDate}, department "${a?.department}".`,
+                `no other doctor's appointments returned (HTTP ${res.status}) — scoped to the caller`),
             "",
             "CONTROL — a patient (Dana) tries the same route (the role guard that DOES exist)",
             `> fetch GET $BASE/api/v1/appointment/getall ${ck("dana")}`,
@@ -389,12 +388,14 @@ async function v14() {
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("alpha")}`,
             `  body: ${JSON.stringify(body1)}`,
             ...show(res1),
-            d1
-                ? verdict(written.length > 1,
-                    `${written.length} of ${Object.keys(body1).length} submitted fields written: ${written.join(", ")}\n` +
-                    `          on an appointment whose doctor is ${d1.doctor}, by Dr Alpha (${acc.alpha.id}).`,
-                    `only ${written.join(", ") || "no"} field(s) written — extra fields ignored`)
-                : verdict(false, `update refused (HTTP ${res1.status})`),
+            verdict(!!d1 && written.length > 1,
+                d1
+                    ? `${written.length} of ${Object.keys(body1).length} submitted fields written: ${written.join(", ")}\n` +
+                      `          on an appointment whose doctor is ${d1.doctor}, by Dr Alpha (${acc.alpha.id}).`
+                    : `no fields written (HTTP ${res1.status})`,
+                d1
+                    ? `only ${written.join(", ") || "no"} field(s) written — extra fields ignored`
+                    : `update refused (HTTP ${res1.status}) — a doctor cannot edit another doctor's appointment`),
             "",
             "ATTACK 2 — reassign the owner: set doctor = Dr Alpha, stealing Dr Beta's appointment",
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("alpha")}`,
@@ -402,7 +403,7 @@ async function v14() {
             ...show(res2),
             verdict(stolen,
                 `appointment owner is now Dr Alpha (${acc.alpha.id}) — it was Dr Beta (${acc.beta.id})`,
-                `owner unchanged (still ${d2?.doctor ?? "?"}) — the doctor field cannot be reassigned`),
+                `owner not reassigned (HTTP ${res2.status}) — the doctor field is ignored and a foreign doctor is refused`),
             "",
             "CONTROL — a patient (Dana) tries to update the appointment (role guard that exists)",
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("dana")}`,

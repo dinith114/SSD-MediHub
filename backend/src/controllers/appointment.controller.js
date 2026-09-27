@@ -53,16 +53,27 @@ export const updateAppointmentStatus = asyncHandler(async (req, res, next) => {
 
     const { id } = req.params;
 
-    let appointment = await Appointment.findById(id);
+    // V-14 fix (mass assignment): accept ONLY the status field. The old code
+    // passed req.body straight to the update, so a doctor could rewrite the
+    // patient's name, the charges, the department — or even reassign the doctor.
+    const { status } = req.body;
+    const allowed = ["Pending", "Accepted", "Rejected"];
+    if (!allowed.includes(status)) {
+        throw new ApiError(400, `status must be one of: ${allowed.join(", ")}`);
+    }
+
+    // V-14 fix (ownership): only the doctor the appointment belongs to may update
+    // it. Scoping the query by doctor means another doctor's appointment is simply
+    // not found (404), so a doctor cannot touch appointments that are not theirs.
+    const appointment = await Appointment.findOneAndUpdate(
+        { _id: id, doctor: req.doctor._id },
+        { status },
+        { new: true, runValidators: true },
+    );
     if (!appointment) {
         throw new ApiError(404, "Appointment not found");
     }
 
-    appointment = await Appointment.findByIdAndUpdate(id, req.body, {
-        new: true,
-        runValidators: true,
-        useFindAndModify: false,
-    });
     res
         .status(200)
         .json(new ApiResponse(200, appointment, "Appointment Status Updated!"));
@@ -88,8 +99,11 @@ export const deleteAppointment = asyncHandler(async (req, res, next) => {
 // Controller function for getting all appointments
 export const getAllAppointments = asyncHandler(async (req, res, next) => {
 
-    // Find all appointments
-    const appointments = await Appointment.find();
+    // V-15 fix: return only the appointments that belong to the logged-in doctor.
+    // Appointment.find() with no filter returned every patient's appointment to
+    // any doctor (name, city, pincode, date, department — health data). Scope the
+    // query to req.doctor._id, the doctor the verified session belongs to.
+    const appointments = await Appointment.find({ doctor: req.doctor._id });
 
     res
         .status(200)

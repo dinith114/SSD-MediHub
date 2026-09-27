@@ -6,14 +6,12 @@ import { Medicine } from "../models/medicine.model.js";
 
 
 export const ToggleCart = asyncHandler(async (req, res) => {
-    // V-11 fix: the client no longer sends the price. totalPrice from the body is
-    // ignored — a patient used to be able to store 99 items for a total of 1, or
-    // even a negative total. The server looks the medicine up and computes the
-    // total itself, so the stored price always reflects the real catalogue.
-    const { userId, medicineId, status } = req.body;
-    const quantity = Number(req.body.quantity);
+    // V-13 fix: the owner is the logged-in patient, never a userId from the
+    // request body. Trusting the body let one patient add to another's cart.
+    const userId = req.user._id;
+    const { medicineId, quantity, totalPrice, status } = req.body;
 
-    if (!userId || !medicineId) {
+    if (!medicineId || !quantity || !totalPrice) {
         throw new ApiError(400, "Please Fill Full Form!");
     }
     if (!Number.isInteger(quantity) || quantity < 1) {
@@ -48,7 +46,10 @@ export const ToggleCart = asyncHandler(async (req, res) => {
 });
 
 export const deleteFromCart = asyncHandler(async (req, res) => {
-    const cart = await UserCart.findByIdAndDelete(req.params.id);
+    // V-13 fix: only delete a row that belongs to the logged-in patient. Scoping
+    // the query by userId means one patient cannot delete another's cart row by
+    // guessing its id (a row owned by someone else simply is not found -> 404).
+    const cart = await UserCart.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!cart) {
         throw new ApiError(404, "Medicine not found");
     }
@@ -56,7 +57,10 @@ export const deleteFromCart = asyncHandler(async (req, res) => {
 });
 
 export const getUserCart = asyncHandler(async (req, res) => {
-    const cart = await UserCart.find({ userId: req.params.userId });
+    // V-13 fix: read the cart of the logged-in patient (req.user._id), not the id
+    // taken from the URL. Before, any patient could read anyone's cart just by
+    // putting the victim's id in the path (IDOR).
+    const cart = await UserCart.find({ userId: req.user._id });
     if (!cart) {
         throw new ApiError(404, "Cart not found");
     }

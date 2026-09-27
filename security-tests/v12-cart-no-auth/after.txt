@@ -1,0 +1,60 @@
+V-12 Two of the three cart routes have no login check
+=====================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T06:12:06.797Z
+branch   : fix/it22083500/v12-cart-auth
+commit   : a8e4a5b
+tool     : Node.js v22.20.0 fetch() — requests sent by security-tests/capture-v11-v15.mjs
+           (the same attacks with the real curl binary: after-curl.txt in this folder)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS PROVES
+  The login middleware is imported in UserCart.routes.js but applied to only one
+  of its three routes. Adding to and deleting from any cart needs no login at all,
+  and the add route does not check the caller's role either.
+
+METHOD: black box — requests with NO cookie (and one with the wrong role),
+        then confirm with the victim's own view
+  victim : bobby (Patient, id 6ab8b3a59e365fd9969c9e92)
+
+THE ROUTE FILE
+  backend/src/routes/UserCart.routes.js:16:  router.post("/add-to-cart", isPatientAuthenticated, ToggleCart);
+  backend/src/routes/UserCart.routes.js:17:  router.delete("/delete-from-cart/:id", isPatientAuthenticated, deleteFromCart);
+  backend/src/routes/UserCart.routes.js:18:  router.get("/user-cart/:userId", isPatientAuthenticated, getUserCart);
+
+CONTROL — the one guarded route, no cookie (this SHOULD be refused)
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8b3a59e365fd9969c9e92 [no cookie]
+  HTTP 401
+  {"success":false,"message":"Unauthorized Access!"}
+
+ATTACK 1 — write into Bobby's cart, no cookie
+> fetch POST $BASE/api/v1/medicines-cart/add-to-cart [no cookie]
+  body: {"userId":"6ab8b3a59e365fd9969c9e92","medicineId":"2cdd7f78db77a6354a375a13","quantity":5,"totalPrice":500,"status":"Pending"}
+  HTTP 401
+  {"success":false,"message":"Unauthorized Access!"}
+
+ATTACK 2 — delete Bobby's seeded cart row, no cookie
+> fetch DELETE $BASE/api/v1/medicines-cart/delete-from-cart/6ab8b3a59e365fd9969ca095 [no cookie]
+  HTTP 401
+  {"success":false,"message":"Unauthorized Access!"}
+
+ATTACK 3 — write into Bobby's cart with a DOCTOR's cookie (wrong role)
+> fetch POST $BASE/api/v1/medicines-cart/add-to-cart [with alpha's session cookie]
+  body: {"userId":"6ab8b3a59e365fd9969c9e92","medicineId":"6c65e164a5ff21d298ff6b12","quantity":1,"totalPrice":999,"status":"Pending"}
+  HTTP 401
+  {"success":false,"message":"Unauthorized Access!"}
+
+CONFIRM — Bobby logs in and looks at his own cart
+> fetch GET $BASE/api/v1/medicines-cart/user-cart/6ab8b3a59e365fd9969c9e92 [with bobby's session cookie]
+  HTTP 200
+  {"statusCode":200,"data":[{"_id":"6ab8b3a59e365fd9969ca095","userId":"6ab8b3a59e365fd9969c9e92","medicineId":"6ab8b3a59e365fd9969c9ea0","quantity":3,"totalPrice":4500,"status":"Pending","createdAt":"2026-09-27T06:11:49.631Z","updatedAt":"2026-09-27T06:11:49.631Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+  RESULT: ✅ no anonymous row was planted
+  RESULT: ✅ Bobby's seeded row 6ab8b3a59e365fd9969ca095 survived
+  RESULT: ✅ the wrong-role write was refused
+
+TOOLING NOTE
+  Semgrep and njsscan do not flag this — nothing in the code *text* is wrong; the
+  bug is a middleware that is missing. Found by reading the route file, proven with live requests.
