@@ -1,0 +1,35 @@
+V-04 Stack trace disclosure — AFTER FIX
+=======================================
+
+state    : AFTER the fix
+captured : 2026-09-27T02:00:59Z
+branch   : fix/it22065230/v04-stack-trace-disclosure
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THE FIX DID
+  1. Corrected the reversed ApiError arguments in login_logout.controller.js
+     (two calls: the "Please Fill Full Form!" and "Invalid email or password"
+     lines). ApiError is (statusCode, message); they had been (message, statusCode).
+  2. Hardened the global error handler (utilis/ApiError.js): the final res.status()
+     now coerces any non-integer / out-of-range status code to 500, so a mis-called
+     ApiError can never make res.status() throw and fall through to Express's
+     default handler (which leaked the stack trace). Defence in depth.
+
+METHOD: black box — repeat the exact request from before.txt
+
+$ curl -i -X POST http://localhost:4000/api/v1/user/login -H "Content-Type: application/json" -d "{}"
+
+  HTTP/1.1 400 Bad Request
+  Content-Type: application/json; charset=utf-8
+
+  {"success":false,"message":"Please Fill Full Form!"}
+
+RESULT
+  Before: HTTP 500 with a full HTML RangeError stack trace disclosing 6 absolute
+          server file paths (see before.txt).
+  After:  HTTP 400 with a clean JSON message. No stack trace, no server paths,
+          no HTML. Leak check: CLEAN.
+
+The same request that used to leak the server's internals now returns a correct,
+minimal error — the intended behaviour.

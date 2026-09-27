@@ -13,7 +13,10 @@ export const login = asyncHandler(async (req, res, next) => {
 
     // checking the info provided by the user
     if (!email || !password || !confirmPassword || !role) {
-        throw new ApiError("Please Fill Full Form!", 400);
+        // V-04 fix: arguments were reversed here (message, statusCode). ApiError is
+        // (statusCode, message), so the status code became a string, res.status()
+        // threw, and Express leaked a full stack trace. Correct order below.
+        throw new ApiError(400, "Please Fill Full Form!");
     }
     // check if password and confirm password matches
     if (password !== confirmPassword) {
@@ -62,7 +65,8 @@ export const login = asyncHandler(async (req, res, next) => {
     // Check if password matches
     const isPasswordMatched = await user.comparePassword(password);
     if (!isPasswordMatched) {
-        throw new ApiError("Invalid email or password", 400);
+        // V-04 fix: same reversed-argument bug as above. Correct order (statusCode, message).
+        throw new ApiError(400, "Invalid email or password");
     }
 
     generateToken(user, "User Logged In Successfully", 200, res)
