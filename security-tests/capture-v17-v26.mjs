@@ -16,6 +16,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
@@ -159,6 +160,29 @@ async function v17() {
         if (fix?.isSemVerMajor) lines.push(`            fix needs a breaking upgrade: ${fix.name}@${fix.version}`);
     }
 
+    //v17- npm audit skips versions with a pre-release tag such as 1.4.5-lts.1: by semver's default
+    // rule a tagged version never matches a plain range like "<2.0.0". The registry's bulk lookup
+    // has the same blind spot, so also ask about the plain number, then match with includePrerelease.
+    const semver = createRequire(path.join(backend, "package.json"))("semver");
+    const tagged = Object.entries(lock.packages)
+        .filter(([p, info]) => p.startsWith("node_modules/") && !info.dev && semver.prerelease(info.version))
+        .map(([p, info]) => [p.split("node_modules/").pop(), info.version]);
+    const res = await fetch("https://registry.npmjs.org/-/npm/v1/security/advisories/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(tagged.map(([n, v]) => [n, [v, semver.coerce(v).version]]))),
+    });
+    const bulk = await res.json();
+    let hidden = 0;
+    lines.push("", "BLIND SPOT — packages with a pre-release version tag, which npm audit skips");
+    if (!tagged.length) lines.push("  none — every production package has a plain version number");
+    for (const [name, version] of tagged) {
+        const hits = (bulk[name] ?? []).filter((a) => semver.satisfies(version, a.vulnerable_versions, { includePrerelease: true }));
+        hidden += hits.length;
+        lines.push(`  ${name} ${version}: npm audit reports 0, but ${hits.length} advisories apply`);
+        for (const a of hits) lines.push(`    ${a.severity.padEnd(9)} ${a.title}  ${a.url}`);
+    }
+
     const listed = Boolean(pkg.dependencies["express-fileupload"]);
     const imports = (await Promise.all(["backend/src", "backend/app.js", "backend/index.js"].map((t) => grep(t, /express-fileupload/)))).flat();
     const serious = prod.metadata.vulnerabilities.critical + prod.metadata.vulnerabilities.high;
@@ -170,9 +194,11 @@ async function v17() {
         ...verdict(
             [
                 ["production vulnerabilities, critical + high", serious],
+                ["advisories npm audit missed (pre-release tags)", hidden],
                 ["unused express-fileupload still installed", yesNo(listed)],
             ],
-            serious > 0,
+            serious > 0 || hidden > 0,
+
             "known-vulnerable libraries ship with the app.",
             "No critical or high advisories left in production dependencies",
         ),
