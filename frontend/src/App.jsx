@@ -25,6 +25,7 @@ import {
   // GoToTop,
   Bot,
 } from "./import-export/ImportExport.js";
+import ProfilePage from "./pages/profile_page/ProfilePage.jsx"; // OAuth feature: shows the verified-patient status
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
 
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
 
           <Route path="/*" element={<ErrorPage />} />
           <Route path="/faqs" element={<FaqsPage />} />
