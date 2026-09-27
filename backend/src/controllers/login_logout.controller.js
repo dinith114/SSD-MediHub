@@ -5,6 +5,7 @@ import { ApiError } from "../utilis/ApiError.js";
 import { User } from "../models/user.model.js";
 import { Doctor } from "../models/doctor.model.js"
 import { generateToken } from "../utilis/jwtToken.js";
+import { revokeToken } from "../utilis/tokenBlocklist.js";
 
 // V-20 fix: a hash of a throwaway value. When the email has no account, login
 // still checks the password against this, so it takes as long as a real account.
@@ -84,6 +85,8 @@ export const login = asyncHandler(async (req, res, next) => {
 
 //! Logout Admin
 export const logoutAdmin = asyncHandler(async (req, res, next) => {
+    // V-05 fix: revoke the token server-side so it cannot be replayed after logout.
+    await revokeToken(req.cookies.adminToken);
     res
         .status(200)
         .cookie("adminToken", "", {
@@ -101,6 +104,8 @@ export const logoutAdmin = asyncHandler(async (req, res, next) => {
 
 //! Logout Patient
 export const logoutPatient = asyncHandler(async (req, res, next) => {
+    // V-05 fix: revoke the token server-side so it cannot be replayed after logout.
+    await revokeToken(req.cookies.patientToken);
     res
         .status(200)
         .cookie("patientToken", "", {
@@ -118,6 +123,8 @@ export const logoutPatient = asyncHandler(async (req, res, next) => {
 
 //! Logout Doctor
 export const logoutDoctor = asyncHandler(async (req, res, next) => {
+    // V-05 fix: revoke the token server-side so it cannot be replayed after logout.
+    await revokeToken(req.cookies.doctorToken);
     res
         .status(200)
         .cookie("doctorToken", "", {

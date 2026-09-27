@@ -66,6 +66,7 @@ import medicineRouter from "./src/routes/medicine.routes.js";
 import CartRouter from "./src/routes/UserCart.routes.js";
 import PaymentRouter from "./src/routes/payment.routes.js";
 import TestimonialRouter from "./src/routes/testimonial.routes.js";
+import authRouter from "./src/routes/auth.routes.js"; // OAuth / OpenID Connect (Sign in with Google)
 
 // Define the root route
 // app.get('/', (req, res) => {
@@ -80,6 +81,7 @@ app.use("/api/v1/medicines", medicineRouter);
 app.use("/api/v1/medicines-cart", CartRouter)
 app.use("/api/v1/payment", PaymentRouter)
 app.use("/api/v1/testimonial", TestimonialRouter)
+app.use("/api/v1/auth", authRouter) // OAuth feature: /api/v1/auth/google/login + /callback
 
 
 // error middleware

@@ -6,7 +6,14 @@ import jwt from "jsonwebtoken";
 // validate the email
 // passoword hashing (bcrypt)
 // compare passowrd
-// generate jwt 
+// generate jwt
+
+// OAuth feature: fields that a Google sign-in cannot provide (password, phone, dob,
+// gender) are required only for locally-registered accounts. A Google account is
+// created from the verified claims Google returns and can fill these in later.
+function requiredForLocal() {
+    return this.authProvider !== "google";
+}
 
 
 const userSchema = new mongoose.Schema(
@@ -28,7 +35,7 @@ const userSchema = new mongoose.Schema(
         },
         phone: {
             type: String,
-            required: [true, "Phone is required"],
+            required: requiredForLocal,
             minLength: [10, "Phone Number must contains exactly 10 digits"],
             maxLength: [10, "Phone Number must contains exactly 10 digits"],
 
@@ -45,17 +52,17 @@ const userSchema = new mongoose.Schema(
         },
         password: {
             type: String,
-            required: true,
+            required: requiredForLocal,
             minLength: [8, "Password must contain at least 8 characters"],
             select: false,
         },
         dob: {
             type: Date,
-            required: [true, "DOB Is Required!"],
+            required: requiredForLocal,
         },
         gender: {
             type: String,
-            required: [true, "Gender Is Required!"],
+            required: requiredForLocal,
             enum: ["Male", "Female"],
         },
         role: {
@@ -63,14 +70,28 @@ const userSchema = new mongoose.Schema(
             required: true,
             enum: ["Admin", "Patient", "Doctor"]
         },
+        // OAuth feature: how the account was created, and whether the email is
+        // verified. For Google accounts emailVerified comes straight from the
+        // verified `email_verified` claim in Google's ID token.
+        authProvider: {
+            type: String,
+            enum: ["local", "google"],
+            default: "local",
+        },
+        emailVerified: {
+            type: Boolean,
+            default: false,
+        },
     },
     { timestamps: true }
 );
 
 
 userSchema.pre("save", async function (next) {
+    // return on the guard, otherwise a save with no password change (e.g. a Google
+    // account, which has no password) would fall through and try to hash undefined.
     if (!this.isModified("password")) {
-        next();
+        return next();
     }
     this.password = await bcrypt.hash(this.password, 10);
     next();
@@ -87,4 +108,4 @@ userSchema.methods.generateJsonWebToken = function () {
 };
 
 
-export const User = mongoose.model("User", userSchema); 
+export const User = mongoose.model("User", userSchema);

@@ -142,12 +142,15 @@ export const searchMedicine = asyncHandler(async (req, res) => {
     // V-08 fix: cap the length, then escape every regex metacharacter so the
     // term is matched literally. validator.escape() (used before) only escapes
     // HTML, not regex, so "|.*" used to rewrite the query and return everything.
-    const search = escapeRegex(raw.trim().slice(0, 64));
+    // Use a real RegExp object (not a { $regex } operator object): the V-07
+    // sanitizeFilter setting wraps operator objects in $eq, which would break
+    // this legitimate query. A RegExp instance is a value, so it is unaffected.
+    const pattern = new RegExp(escapeRegex(raw.trim().slice(0, 64)), "i");
 
     const medicines = await Medicine.find({
         $or: [
-            { name: { $regex: search, $options: "i" } },
-            { category: { $regex: search, $options: "i" } },
+            { name: pattern },
+            { category: pattern },
         ],
     }).maxTimeMS(2000); // stop any pathological query after 2 seconds
 

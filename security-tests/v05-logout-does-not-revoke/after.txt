@@ -1,0 +1,36 @@
+V-05 Logout does not revoke the token — AFTER FIX
+=================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T16:21:55Z
+branch   : fix/it22065230/v05-logout-revocation
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THE FIX DID (Option A — server-side token denylist)
+  1. New model src/models/revokedToken.model.js: a denylist storing only a SHA-256
+     hash of each logged-out token, with a TTL index that auto-removes each entry
+     once the token would have expired anyway.
+  2. New util src/utilis/tokenBlocklist.js: revokeToken() adds a token's hash to the
+     denylist on logout; isTokenRevoked() checks it.
+  3. The 3 logout handlers (login_logout.controller.js) now call revokeToken() on the
+     current token before clearing the cookie.
+  4. The 3 auth guards (auth.middleware.js) now reject a token that is on the denylist
+     (401), even though its signature is still valid.
+
+METHOD: black box — same script as the before evidence (node security-tests/demo-v05.mjs)
+
+  STEP 1  GET /user/patient/me   (with the cookie)              -> HTTP 200  logged in
+  STEP 2  GET /user/patient/logout   (same cookie)              -> HTTP 200  logged out
+  STEP 3  GET /user/patient/me   REPLAY same token after logout -> HTTP 401  rejected
+
+RESULT
+  Before: STEP 3 returned 200 with the full profile — the token still worked after
+          logout (see before.txt).
+  After:  STEP 3 returns 401 — the token is revoked server-side the moment the user
+          logs out. Replaying a captured token no longer works.
+
+NOTE
+  Only a hash of the token is stored, never the token itself. The TTL index keeps the
+  denylist from growing unbounded. This revokes the specific logged-out session (not
+  all of a user's devices), which matches normal "log out" behaviour.
