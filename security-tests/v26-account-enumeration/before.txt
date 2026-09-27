@@ -1,0 +1,56 @@
+V-26 Sign-up and login reveal which accounts exist, and their role
+==================================================================
+
+state    : BEFORE the fix
+captured : 2026-09-27T06:20:07.567Z
+branch   : test/it22064936/v17-v19-v25-v26-before-evidence
+commit   : edd15f5
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  Whether an anonymous visitor can tell which emails have accounts, and their role,
+  just from the wording of error messages.
+
+METHOD: black box — the same request with different emails, compare the answers
+
+THE SOURCE
+  backend/src/controllers/user.controller.js:21:  throw new ApiError(400, `${existedUser.role} with this Email already Registered`);
+  backend/src/controllers/login_logout.controller.js:56:  throw new ApiError(400, "Invalid email or password");
+  backend/src/controllers/login_logout.controller.js:61:  throw new ApiError(400, `User with ${role} role not found`);
+  backend/src/controllers/login_logout.controller.js:69:  throw new ApiError(400, "Invalid email or password");
+
+PART 1 — REGISTRATION, no login needed
+
+> fetch POST $BASE/api/v1/user/patient/register  [no cookie]  email = admin@test.local  (an existing Admin)
+  HTTP 400
+  {"success":false,"message":"Admin with this Email already Registered"}
+
+> fetch POST $BASE/api/v1/user/patient/register  [no cookie]  email = alice@test.local  (an existing Patient)
+  HTTP 400
+  {"success":false,"message":"Patient with this Email already Registered"}
+
+> fetch POST $BASE/api/v1/user/patient/register  [no cookie]  email = probe-1790490129167@test.local  (never registered)
+  HTTP 200
+  {"statusCode":200,"data":{"user":{"id":"6ab8b611fd18499a7e0ae827","firstName":"Probe","lastName":"Person","email":"probe-1790490129167@test.local","role":"Patient"}},"message":"User Registrated Successfully!"}
+
+PART 2 — LOGIN, same wrong password, two different emails
+
+> fetch POST $BASE/api/v1/user/login  email = alice@test.local (exists), wrong password
+  HTTP 400
+  {"success":false,"message":"Invalid email or password"}
+
+> fetch POST $BASE/api/v1/user/login  email = ghost-nobody@test.local (does not exist), wrong password
+  HTTP 400
+  {"success":false,"message":"User with Patient role not found"}
+
+RESULT
+  registration names the role of an existing account : YES  ("Admin with this Email already Registered")
+  login answers differ for unknown email / wrong pwd : YES
+  VULNERABLE — an anonymous visitor can list real accounts and find the Admin.
+
+NOTES
+  Login is reachable only since the V-04 fix; in the original app it crashed before this
+  code ran. The registration half works on the original code. Login uses Google's public
+  reCAPTCHA test secret, which always passes, so the password check is what is tested.

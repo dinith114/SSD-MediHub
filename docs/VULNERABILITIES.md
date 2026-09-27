@@ -85,14 +85,16 @@ Full details for each finding are in Sections 2, 3 and 3b.
 | V-14 ⭐ | Mass assignment on appointments | High | A01 | **Samadinee** | claimed |
 | V-15 | Every doctor sees every patient | Medium | A01 | **Samadinee** | claimed |
 | V-16 | Booking needs two roles at once | Medium | A06 | — | open · supporting only |
-| V-17 | 23 vulnerable dependencies | Critical | A03 | — | **open** |
-| V-18 | No rate limiting | High | A07 | — | **open** |
-| V-19 | No security headers | Medium | A02 | — | **open** |
+| V-17 | 23 vulnerable dependencies | Critical | A03 | **Jayangi** | claimed |
+| V-18 | No rate limiting | High | A07 | **Jayangi** | claimed |
+| V-19 | No security headers | Medium | A02 | **Jayangi** | claimed |
 | V-20 | Null crash on a deleted user's token | Medium | A10 | — | **open** |
 | V-21 | CORS typo disables the restriction | Low | A02 | — | **open** |
 | V-22 | Review routes have no login check | Medium | A01 | — | **open** |
 | V-23 | Timing comparison (false positive) | Info | A04 | — | triaged · supporting only |
 | V-24 | API key in client-side code | Low | A04 | — | open · supporting only |
+| V-25 | Passwords written to the server log, no security event logging | Medium | A09 | **Jayangi** | claimed |
+| V-26 | Sign-up and login reveal which accounts exist, and their role | Medium | A07 | **Jayangi** | claimed |
 
 **The brief needs at least 7 distinct vulnerabilities from the group.** With Dinith's six and Pasan's
 four we already pass that, so the remaining 14 are about depth, coverage and everyone having their own

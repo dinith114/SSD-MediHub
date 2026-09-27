@@ -1,0 +1,50 @@
+V-18 No limit on password guessing or sign-ups
+==============================================
+
+state    : BEFORE the fix
+captured : 2026-09-27T06:20:07.567Z
+branch   : test/it22064936/v17-v19-v25-v26-before-evidence
+commit   : edd15f5
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  Whether anything slows down or stops password guessing: a rate limit (HTTP 429), an
+  account lockout, or a delay.
+
+METHOD: black box — rapid repeated requests, count how many are refused
+
+THE SOURCE — where a rate limiter is applied
+  backend/src/routes/contactus.routes.js:4:  import { contactLimiter } from "../middlewares/rateLimit.middleware.js";
+  backend/src/routes/contactus.routes.js:11:  router.post("/send", contactLimiter, sendMessage);
+  backend/src/routes/user.routes.js:12:  router.post("/patient/register", patientRegister);
+  backend/src/routes/user.routes.js:13:  router.post("/login", login);
+
+CONTROL — the contact form, which does have a limiter (V-10 fix), 6 requests
+  status codes in order: 400, 400, 400, 400, 400, 429
+  refused with HTTP 429: 1
+
+ATTACK 1 — 30 wrong passwords against the Admin account, as fast as possible
+  attempt 1 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+  attempts 1-30 in 11.8 s -> HTTP 400 x 30
+  refused with HTTP 429: 0
+
+  attempt 31 — the CORRECT password, straight after the 30 failures:
+  HTTP 200
+  {"statusCode":200,"data":{"user":{"id":"6ab8b61a2ae3b9834a9f0865","firstName":"Adam","lastName":"Adminson","email":"admin@test.local","role":"Admin"}},"message":"User Logged In Successfully"}
+
+ATTACK 2 — 20 account registrations in a row from one address
+  HTTP 200 x 20
+  refused with HTTP 429: 0
+
+RESULT
+  login attempts refused (429) out of 30             : 0
+  correct password still accepted after 30 fails     : YES
+  registrations refused (429) out of 20              : 0
+  VULNERABLE — unlimited password guesses against the Admin, and unlimited sign-ups.
+
+NOTES
+  The control proves the limiter library works in this app — it was just never applied
+  to login or registration. Login uses Google's public reCAPTCHA test secret, which
+  always passes; a real CAPTCHA adds friction but is not a rate limit.

@@ -1,0 +1,72 @@
+V-19 The API sends no security headers
+======================================
+
+state    : BEFORE the fix
+captured : 2026-09-27T06:20:07.567Z
+branch   : test/it22064936/v17-v19-v25-v26-before-evidence
+commit   : edd15f5
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  Which HTTP security headers the API sends — the browser-side safety net that refuses
+  framing, content sniffing, plain HTTP and so on.
+
+METHOD: black box — read the response headers of a public and a private endpoint
+
+THE SOURCE
+  helmet in backend/package.json dependencies : NO
+
+> fetch GET /api/v1/user/alldoctors  [public, no cookie]
+  HTTP 200
+  access-control-allow-credentials: true
+  connection: keep-alive
+  content-length: 1500
+  content-type: application/json; charset=utf-8
+  date: Sun, 27 Sep 2026 06:22:06 GMT
+  etag: W/"5dc-3m8cC2PZBC7LABWo+pmP8oxtNkU"
+  keep-alive: timeout=5
+  vary: Origin
+  x-powered-by: Express
+
+  security header                 present?   what it does
+  content-security-policy         MISSING    limits where scripts, frames and data may load from
+  strict-transport-security       MISSING    forces HTTPS on every later visit
+  x-content-type-options          MISSING    stops the browser guessing (sniffing) content types
+  x-frame-options                 MISSING    stops the site being framed invisibly (clickjacking)
+  referrer-policy                 MISSING    stops URLs leaking to other sites in the Referer header
+  cross-origin-opener-policy      MISSING    isolates the window from cross-origin pop-ups
+  cross-origin-resource-policy    MISSING    stops other sites embedding these responses
+  x-powered-by                    "Express"  should be absent — it advertises the server software
+
+> fetch GET /api/v1/user/patient/me  [private, alice's session cookie]
+  HTTP 200
+  access-control-allow-credentials: true
+  connection: keep-alive
+  content-length: 380
+  content-type: application/json; charset=utf-8
+  date: Sun, 27 Sep 2026 06:22:06 GMT
+  etag: W/"17c-xSWqperhjyeScSz2+3lyON6fUKg"
+  keep-alive: timeout=5
+  vary: Origin
+  x-powered-by: Express
+
+  security header                 present?   what it does
+  content-security-policy         MISSING    limits where scripts, frames and data may load from
+  strict-transport-security       MISSING    forces HTTPS on every later visit
+  x-content-type-options          MISSING    stops the browser guessing (sniffing) content types
+  x-frame-options                 MISSING    stops the site being framed invisibly (clickjacking)
+  referrer-policy                 MISSING    stops URLs leaking to other sites in the Referer header
+  cross-origin-opener-policy      MISSING    isolates the window from cross-origin pop-ups
+  cross-origin-resource-policy    MISSING    stops other sites embedding these responses
+  x-powered-by                    "Express"  should be absent — it advertises the server software
+
+RESULT
+  security headers present, out of 14 checked        : 0
+  X-Powered-By advertised                            : YES
+  VULNERABLE — no security headers at all, and the server announces it runs Express.
+
+TOOLING NOTE
+  An OWASP ZAP passive scan reports the same missing headers; capture it separately.
+  These are API responses. The React pages are served by Vite, so they need their own check.

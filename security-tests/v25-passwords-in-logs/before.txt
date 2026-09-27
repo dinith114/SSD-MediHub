@@ -1,0 +1,84 @@
+V-25 Passwords written to the server log, no security event logging
+===================================================================
+
+state    : BEFORE the fix
+captured : 2026-09-27T06:20:07.567Z
+branch   : test/it22064936/v17-v19-v25-v26-before-evidence
+commit   : edd15f5
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  What the server writes to its own console (its log): whether secrets and personal data
+  end up there, and whether failed logins and forged tokens leave any trace.
+
+METHOD: black box requests, while this script records everything the server prints
+
+THE SOURCE
+  backend/src/controllers/doctor.controller.js:18:  console.log(req.body);
+  backend/src/controllers/testimonial.controller.js:17:  console.log(req.body);
+  logging library in backend/package.json : none
+
+TEST 1 — the admin adds a doctor, with password "Evidence-Doc-Pass-2026!"
+> fetch POST $BASE/api/v1/user/doctor/addnew  [admin's session cookie, multipart form, no avatar file]
+  HTTP 400
+  {"success":false,"message":"Doctor Avatar Path Not Found!"}
+
+  server console during this request:
+  | [Object: null prototype] {
+  |   firstName: 'Probe',
+  |   lastName: 'Doctor',
+  |   email: 'probedoc-1790490134783@test.local',
+  |   phone: '0779998888',
+  |   password: 'Evidence-Doc-Pass-2026!',
+  |   gender: 'Male',
+  |   experience: '5',
+  |   appointmentCharges: '1000',
+  |   address: [Object: null prototype] {
+  |     country: 'LK',
+  |     city: 'Kandy',
+  |     pincode: '20000'
+  |   },
+  |   department: [Object: null prototype] { name: 'Cardiology', description: 'Heart' },
+  |   specializations: [
+  |     [Object: null prototype] {
+  |       name: 'Echo',
+  |       description: 'Ultrasound'
+  |     }
+  |   ],
+  |   qualifications: [ 'MBBS' ],
+  |   availabelSlots: [Object: null prototype] { days: [ 'Mon' ], hours: '9-5' },
+  |   languagesKnown: [ 'English' ]
+  | }
+
+TEST 2 — an anonymous visitor submits a review
+> fetch POST $BASE/api/v1/testimonial/add  [no cookie]
+  HTTP 400
+  {"success":false,"message":"Testimonial Image Path Not Found!"}
+
+  server console during this request:
+  | {
+  |   fullName: 'Visitor Person',
+  |   email: 'visitor-1790490134783@example.test',
+  |   country: 'LK',
+  |   state: 'Western',
+  |   review: 'Great service'
+  | }
+
+TEST 3 — six security events: 3 forged admin tokens, 3 wrong admin passwords
+  forged admin token, attempt 1           -> HTTP 400  {"success":false,"message":"Json Web Token is invalid, Try again!"}
+  forged admin token, attempt 2           -> HTTP 400  {"success":false,"message":"Json Web Token is invalid, Try again!"}
+  forged admin token, attempt 3           -> HTTP 400  {"success":false,"message":"Json Web Token is invalid, Try again!"}
+  wrong password for the admin, attempt 1 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+  wrong password for the admin, attempt 2 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+  wrong password for the admin, attempt 3 -> HTTP 400  {"success":false,"message":"Invalid email or password"}
+
+  server console during these six requests:
+  | (nothing — not a single line)
+
+RESULT
+  doctor's plaintext password in the server console  : YES
+  anonymous visitor's email in the server console    : YES
+  lines logged for 6 failed security events          : 0
+  VULNERABLE — secrets and personal data are logged, and attacks leave no trace.
