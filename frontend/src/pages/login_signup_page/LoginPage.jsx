@@ -111,6 +111,28 @@ function LoginPage() {
               Login
             </button>
           </form>
+
+          {/* OAuth feature: Sign in with Google (OpenID Connect, Authorization Code + PKCE).
+              A full-page navigation to the backend, which starts the flow with Google. */}
+          <div className="flex items-center gap-2 my-3 text-gray-400 text-sm">
+            <span className="flex-1 border-t border-gray-300" /> or <span className="flex-1 border-t border-gray-300" />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = `${base_url}/auth/google/login`;
+            }}
+            className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 px-4 mb-4 font-semibold hover:bg-gray-50"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.1 17.7 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.2-9.8 6.2-17.4z"/>
+              <path fill="#FBBC05" d="M10.5 28.3c-.5-1.5-.8-3.1-.8-4.8s.3-3.3.8-4.8l-7.9-6.1C1 15.9 0 19.8 0 23.5s1 7.6 2.6 10.9l7.9-6.1z"/>
+              <path fill="#34A853" d="M24 47c6.4 0 11.8-2.1 15.7-5.8l-7.3-5.7c-2 1.4-4.7 2.3-8.4 2.3-6.3 0-11.6-3.6-13.5-8.8l-7.9 6.1C6.5 42.6 14.6 47 24 47z"/>
+            </svg>
+            Sign in with Google
+          </button>
+
           <div className="flex justify-between text-sm md:text-lg">
             <Link
               to="/signup"
