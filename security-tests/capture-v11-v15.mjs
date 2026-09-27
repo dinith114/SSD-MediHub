@@ -380,12 +380,14 @@ async function v14() {
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("alpha")}`,
             `  body: ${JSON.stringify(body1)}`,
             ...show(res1),
-            d1
-                ? verdict(written.length > 1,
-                    `${written.length} of ${Object.keys(body1).length} submitted fields written: ${written.join(", ")}\n` +
-                    `          on an appointment whose doctor is ${d1.doctor}, by Dr Alpha (${acc.alpha.id}).`,
-                    `only ${written.join(", ") || "no"} field(s) written — extra fields ignored`)
-                : verdict(false, `update refused (HTTP ${res1.status})`),
+            verdict(!!d1 && written.length > 1,
+                d1
+                    ? `${written.length} of ${Object.keys(body1).length} submitted fields written: ${written.join(", ")}\n` +
+                      `          on an appointment whose doctor is ${d1.doctor}, by Dr Alpha (${acc.alpha.id}).`
+                    : `no fields written (HTTP ${res1.status})`,
+                d1
+                    ? `only ${written.join(", ") || "no"} field(s) written — extra fields ignored`
+                    : `update refused (HTTP ${res1.status}) — a doctor cannot edit another doctor's appointment`),
             "",
             "ATTACK 2 — reassign the owner: set doctor = Dr Alpha, stealing Dr Beta's appointment",
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("alpha")}`,
@@ -393,7 +395,7 @@ async function v14() {
             ...show(res2),
             verdict(stolen,
                 `appointment owner is now Dr Alpha (${acc.alpha.id}) — it was Dr Beta (${acc.beta.id})`,
-                `owner unchanged (still ${d2?.doctor ?? "?"}) — the doctor field cannot be reassigned`),
+                `owner not reassigned (HTTP ${res2.status}) — the doctor field is ignored and a foreign doctor is refused`),
             "",
             "CONTROL — a patient (Dana) tries to update the appointment (role guard that exists)",
             `> fetch PUT $BASE/api/v1/appointment/update/${ids.appointmentId} ${ck("dana")}`,
