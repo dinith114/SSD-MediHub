@@ -29,6 +29,12 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// V-19 fix: record security events (failed logins, bad tokens, blocked requests).
+// Registered before the CSRF guard and the routes, so their refusals are recorded too.
+import { securityLog } from "./src/middlewares/securityLog.middleware.js";
+app.use(securityLog);
+
+
 // V-02 fix (CSRF defence in depth): reject state-changing requests whose Origin
 // (or Referer) is present but not in our allow-list. A browser always sends an
 // Origin header on a cross-site request, so a request forged by an attacker's
