@@ -5,9 +5,12 @@ import { UserCart } from "../models/UserCart.model.js";
 
 
 export const ToggleCart = asyncHandler(async (req, res) => {
-    const { userId, medicineId, quantity, totalPrice, status } = req.body;
+    // V-13 fix: the owner is the logged-in patient, never a userId from the
+    // request body. Trusting the body let one patient add to another's cart.
+    const userId = req.user._id;
+    const { medicineId, quantity, totalPrice, status } = req.body;
 
-    if (!userId || !medicineId || !quantity || !totalPrice) {
+    if (!medicineId || !quantity || !totalPrice) {
         throw new ApiError(400, "Please Fill Full Form!");
     }
 
@@ -33,7 +36,10 @@ export const ToggleCart = asyncHandler(async (req, res) => {
 });
 
 export const deleteFromCart = asyncHandler(async (req, res) => {
-    const cart = await UserCart.findByIdAndDelete(req.params.id);
+    // V-13 fix: only delete a row that belongs to the logged-in patient. Scoping
+    // the query by userId means one patient cannot delete another's cart row by
+    // guessing its id (a row owned by someone else simply is not found -> 404).
+    const cart = await UserCart.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!cart) {
         throw new ApiError(404, "Medicine not found");
     }
@@ -41,7 +47,10 @@ export const deleteFromCart = asyncHandler(async (req, res) => {
 });
 
 export const getUserCart = asyncHandler(async (req, res) => {
-    const cart = await UserCart.find({ userId: req.params.userId });
+    // V-13 fix: read the cart of the logged-in patient (req.user._id), not the id
+    // taken from the URL. Before, any patient could read anyone's cart just by
+    // putting the victim's id in the path (IDOR).
+    const cart = await UserCart.find({ userId: req.user._id });
     if (!cart) {
         throw new ApiError(404, "Cart not found");
     }

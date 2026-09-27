@@ -198,16 +198,16 @@ async function v13() {
             `ATTACK 1 — ${who("dana")} asks for Bobby's cart, with her own cookie`,
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("dana")}`,
             ...show(danaSeesBobby),
-            danaRows.length
-                ? verdict(true, `${danaRows.length} of Bobby's row(s) returned to Dana — quantity ${danaRows[0].quantity}, totalPrice ${danaRows[0].totalPrice}, status ${danaRows[0].status}`)
-                : verdict(false, `no rows of Bobby's returned (HTTP ${danaSeesBobby.status}) — access refused`),
+            verdict(danaRows.length > 0,
+                `${danaRows.length} of Bobby's row(s) returned to Dana — quantity ${danaRows[0]?.quantity}, totalPrice ${danaRows[0]?.totalPrice}, status ${danaRows[0]?.status}`,
+                `no rows of Bobby's returned (HTTP ${danaSeesBobby.status}) — Dana got only her own cart, access to Bobby's refused`),
             "",
             `ATTACK 2 — a second, unrelated patient ${who("carol")} does the same`,
             `> fetch GET $BASE/api/v1/medicines-cart/user-cart/${acc.bobby.id} ${ck("carol")}`,
             ...show(carolSeesBobby),
-            carolRows.length
-                ? verdict(true, `Carol also received ${carolRows.length} of Bobby's row(s) — any patient can read any cart`)
-                : verdict(false, `Carol was refused (HTTP ${carolSeesBobby.status})`),
+            verdict(carolRows.length > 0,
+                `Carol also received ${carolRows.length} of Bobby's row(s) — any patient can read any cart`,
+                `Carol received none of Bobby's rows (HTTP ${carolSeesBobby.status}) — access refused`),
             "",
             "WHITE BOX — the ID the query trusts",
             ...(await grepSource("backend/src/controllers/UserCart.controller.js", /req\.params\.userId|const \{ userId/)),
@@ -315,12 +315,11 @@ async function v15() {
             "ATTACK — Dr Alpha, unrelated to the appointment, lists every appointment",
             `> fetch GET $BASE/api/v1/appointment/getall ${ck("alpha")}`,
             ...show(res),
-            a
-                ? verdict(true,
-                    `${foreign.length} appointment(s) belonging to other doctors returned to Dr Alpha.\n` +
-                    `          Exposed: patient "${a.patientFirstName} ${a.patientLastName}", city ${a.city}, pincode ${a.pincode},\n` +
-                    `          date ${a.appointmentDate}, department "${a.department}".`)
-                : verdict(false, `no other doctor's appointments returned (HTTP ${res.status}) — scoped correctly`),
+            verdict(!!a,
+                `${foreign.length} appointment(s) belonging to other doctors returned to Dr Alpha.\n` +
+                `          Exposed: patient "${a?.patientFirstName} ${a?.patientLastName}", city ${a?.city}, pincode ${a?.pincode},\n` +
+                `          date ${a?.appointmentDate}, department "${a?.department}".`,
+                `no other doctor's appointments returned (HTTP ${res.status}) — scoped to the caller`),
             "",
             "CONTROL — a patient (Dana) tries the same route (the role guard that DOES exist)",
             `> fetch GET $BASE/api/v1/appointment/getall ${ck("dana")}`,

