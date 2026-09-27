@@ -4,8 +4,13 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { errorHandler } from "./src/utilis/ApiError.js";
 import cors from "cors";
+import { securityHeaders } from "./src/middlewares/securityHeaders.middleware.js";
 
 const app = express();
+
+// V-18 fix: security headers on every response, before anything else runs.
+app.disable("x-powered-by");
+app.use(securityHeaders);
 
 // dotenv configuration
 dotenv.config({

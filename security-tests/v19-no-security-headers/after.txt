@@ -1,0 +1,95 @@
+V-18 The API sends no security headers
+======================================
+
+state    : AFTER the fix
+captured : 2026-09-27T10:26:59.805Z
+branch   : fix/it22064936/v18-no-security-headers
+commit   : db55ce1
+tool     : Node.js v22.14.0 fetch() — requests sent by security-tests/capture-v17-v26.mjs
+target   : http://localhost:4000  (disposable in-memory database, localhost only)
+
+------------------------------------------------------------------------------
+WHAT THIS CHECKS
+  Which HTTP security headers the API sends — the browser-side safety net that refuses
+  framing, content sniffing, plain HTTP and so on.
+
+METHOD: black box — read the response headers of a public and a private endpoint
+
+THE SOURCE
+  helmet in backend/package.json dependencies : YES
+  backend/app.js:12:  app.disable("x-powered-by");
+
+> fetch GET /api/v1/user/alldoctors  [public, no cookie]
+  HTTP 200
+  access-control-allow-credentials: true
+  connection: keep-alive
+  content-length: 1500
+  content-security-policy: default-src 'none';frame-ancestors 'none'
+  content-type: application/json; charset=utf-8
+  cross-origin-opener-policy: same-origin
+  cross-origin-resource-policy: same-origin
+  date: Sun, 27 Sep 2026 10:27:14 GMT
+  etag: W/"5dc-PcAEIW8YxCzgTRdmujgCOrWNa3Y"
+  keep-alive: timeout=5
+  origin-agent-cluster: ?1
+  referrer-policy: no-referrer
+  strict-transport-security: max-age=31536000; includeSubDomains
+  vary: Origin
+  x-content-type-options: nosniff
+  x-dns-prefetch-control: off
+  x-download-options: noopen
+  x-frame-options: DENY
+  x-permitted-cross-domain-policies: none
+  x-xss-protection: 0
+
+  security header                 present?   what it does
+  content-security-policy         yes        limits where scripts, frames and data may load from
+  strict-transport-security       yes        forces HTTPS on every later visit
+  x-content-type-options          yes        stops the browser guessing (sniffing) content types
+  x-frame-options                 yes        stops the site being framed invisibly (clickjacking)
+  referrer-policy                 yes        stops URLs leaking to other sites in the Referer header
+  cross-origin-opener-policy      yes        isolates the window from cross-origin pop-ups
+  cross-origin-resource-policy    yes        stops other sites embedding these responses
+  x-powered-by                    absent     should be absent — it advertises the server software
+
+> fetch GET /api/v1/user/patient/me  [private, alice's session cookie]
+  HTTP 200
+  access-control-allow-credentials: true
+  connection: keep-alive
+  content-length: 380
+  content-security-policy: default-src 'none';frame-ancestors 'none'
+  content-type: application/json; charset=utf-8
+  cross-origin-opener-policy: same-origin
+  cross-origin-resource-policy: same-origin
+  date: Sun, 27 Sep 2026 10:27:14 GMT
+  etag: W/"17c-KthHSlT/l/W9CTM4l+f4katvdDQ"
+  keep-alive: timeout=5
+  origin-agent-cluster: ?1
+  referrer-policy: no-referrer
+  strict-transport-security: max-age=31536000; includeSubDomains
+  vary: Origin
+  x-content-type-options: nosniff
+  x-dns-prefetch-control: off
+  x-download-options: noopen
+  x-frame-options: DENY
+  x-permitted-cross-domain-policies: none
+  x-xss-protection: 0
+
+  security header                 present?   what it does
+  content-security-policy         yes        limits where scripts, frames and data may load from
+  strict-transport-security       yes        forces HTTPS on every later visit
+  x-content-type-options          yes        stops the browser guessing (sniffing) content types
+  x-frame-options                 yes        stops the site being framed invisibly (clickjacking)
+  referrer-policy                 yes        stops URLs leaking to other sites in the Referer header
+  cross-origin-opener-policy      yes        isolates the window from cross-origin pop-ups
+  cross-origin-resource-policy    yes        stops other sites embedding these responses
+  x-powered-by                    absent     should be absent — it advertises the server software
+
+RESULT
+  security headers present, out of 14 checked        : 14
+  X-Powered-By advertised                            : NO
+  All checked headers present and X-Powered-By removed — this is the 'after' state.
+
+TOOLING NOTE
+  An OWASP ZAP passive scan reports the same missing headers; capture it separately.
+  These are API responses. The React pages are served by Vite, so they need their own check.
