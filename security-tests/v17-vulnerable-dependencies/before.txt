@@ -2,9 +2,9 @@ V-17 Known-vulnerable libraries pinned in the lockfile
 ======================================================
 
 state    : BEFORE the fix
-captured : 2026-09-27T06:20:07.567Z
-branch   : test/it22064936/v17-v19-v25-v26-before-evidence
-commit   : edd15f5
+captured : 2026-09-27T12:07:54.746Z
+branch   : fix/it22064936/v16-vulnerable-dependencies
+commit   : 9481f47
 tool     : npm audit (npm 11.2.0) against the public registry — run by security-tests/capture-v17-v26.mjs
 target   : backend/package.json + backend/package-lock.json  (no server needed)
 
@@ -79,7 +79,7 @@ PRODUCTION FINDINGS, WORST FIRST
   HIGH      nodemailer 6.9.13  (direct dependency)
             Nodemailer: Email to an unintended domain can occur due to Interpretation Conflict
             https://github.com/advisories/GHSA-mm7p-fcc7-pg87   (+10 more advisories)
-            fix needs a breaking upgrade: nodemailer@10.0.10
+            fix needs a breaking upgrade: nodemailer@10.0.11
 
   HIGH      path-to-regexp 0.1.7  (transitive dependency)
             path-to-regexp outputs backtracking regular expressions
@@ -108,10 +108,25 @@ PRODUCTION FINDINGS, WORST FIRST
             serve-static vulnerable to template injection that can lead to XSS
             https://github.com/advisories/GHSA-cm22-4g7w-348p
 
+BLIND SPOT — packages with a pre-release version tag, which npm audit skips
+  multer 1.4.5-lts.1: npm audit reports 0, but 11 advisories apply
+    high      Multer vulnerable to Denial of Service from maliciously crafted requests  https://github.com/advisories/GHSA-4pg4-qvpc-4q3h
+    high      Multer vulnerable to Denial of Service via unhandled exception  https://github.com/advisories/GHSA-g5hg-p3ph-g8qg
+    high      Multer vulnerable to Denial of Service via memory leaks from unclosed streams  https://github.com/advisories/GHSA-44fp-w29j-9vj5
+    high      Multer vulnerable to Denial of Service via unhandled exception from malformed request  https://github.com/advisories/GHSA-fjgf-rc76-4x9p
+    high      Multer vulnerable to Denial of Service via incomplete cleanup  https://github.com/advisories/GHSA-xf7r-hgr6-v32p
+    high      Multer vulnerable to Denial of Service via resource exhaustion  https://github.com/advisories/GHSA-v52c-386h-88mc
+    high      Multer Vulnerable to Denial of Service via Uncontrolled Recursion  https://github.com/advisories/GHSA-5528-5vmv-3xc2
+    high      Multer vulnerable to Denial of Service via deeply nested field names  https://github.com/advisories/GHSA-72gw-mp4g-v24j
+    high      multer vulnerable to Denial of Service via crafted multipart field names  https://github.com/advisories/GHSA-wc9g-mqfw-jrwm
+    low       multer vulnerable to file size limit bypass via async fileFilter race condition  https://github.com/advisories/GHSA-qvfw-j98x-7q72
+    high      multer vulnerable to Denial of Service via oversized array index in field names  https://github.com/advisories/GHSA-535w-7cp7-47q4
+
 UNUSED ATTACK SURFACE
   express-fileupload in package.json : YES    imported anywhere in backend/ : NO
 
 RESULT
   production vulnerabilities, critical + high        : 16
+  advisories npm audit missed (pre-release tags)     : 11
   unused express-fileupload still installed          : YES
   VULNERABLE — known-vulnerable libraries ship with the app.
