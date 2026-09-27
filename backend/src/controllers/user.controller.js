@@ -18,7 +18,9 @@ export const patientRegister = asyncHandler(async (req, res, next) => {
     // check if the user already exists
     let existedUser = await User.findOne({ email });
     if (existedUser) {
-        throw new ApiError(400, `${existedUser.role} with this Email already Registered`);
+        // V-20 fix: never say which role owns the email. Before, this told any
+        // visitor "Admin with this Email already Registered".
+        throw new ApiError(400, "This email cannot be used to register. If you already have an account, please log in.");
     }
 
     // finally create the user
